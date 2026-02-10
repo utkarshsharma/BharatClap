@@ -1,0 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  PROVIDER_ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  AI_RULED
+  ADMIN_OVERRIDDEN
+  RESOLVED
+}
+
+enum RecurringFreq {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  phone              String   @unique
+  name               String?
+  email              String?
+  role               UserRole?
+  avatarUrl          String?  @map("avatar_url")
+  firebaseUid        String   @unique @map("firebase_uid")
+  preferredLanguage  String   @default("en") @map("preferred_language")
+  city               String?
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  providerProfile    ProviderProfile?
+  addresses          Address[]
+  bookingsAsCustomer Booking[]          @relation("CustomerBookings")
+  bookingsAsProvider Booking[]          @relation("ProviderBookings")
+  reviewsGiven       Review[]           @relation("ReviewsGiven")
+  reviewsReceived    Review[]           @relation("ReviewsReceived")
+  notifications      Notification[]
+  favoriteProviders  FavoriteProvider[]  @relation("CustomerFavorites")
+  favoritedBy        FavoriteProvider[]  @relation("ProviderFavoritedBy")
+  disputesAsCustomer Dispute[]          @relation("CustomerDisputes")
+  disputesAsProvider Dispute[]          @relation("ProviderDisputes")
+  supportTickets     SupportTicket[]
+  chatMessages       ChatMessage[]
+  statusChanges      BookingStatusLog[] @relation("StatusChangedBy")
+  recurringAsCustomer RecurringBooking[] @relation("RecurringCustomer")
+  recurringAsProvider RecurringBooking[] @relation("RecurringProvider")
+
+  @@map("users")
+}
+
+model ProviderProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  bio             String?
+  kycStatus       KycStatus @default(NOT_STARTED) @map("kyc_status")
+  aadhaarVerified Boolean  @default(false) @map("aadhaar_verified")
+  aadhaarLast4    String?  @map("aadhaar_last4") @db.VarChar(4)
+  baseLatitude    Float?   @map("base_latitude")
+  baseLongitude   Float?   @map("base_longitude")
+  serviceRadiusKm Int      @default(10) @map("service_radius_km")
+  avgRating       Float    @default(0) @map("avg_rating")
+  avgPunctuality  Float    @default(0) @map("avg_punctuality")
+  avgQuality      Float    @default(0) @map("avg_quality")
+  avgBehavior     Float    @default(0) @map("avg_behavior")
+  avgValue        Float    @default(0) @map("avg_value")
+  totalJobs       Int      @default(0) @map("total_jobs")
+  totalEarnings   Int      @default(0) @map("total_earnings")
+  walletBalance   Int      @default(0) @map("wallet_balance")
+  bankAccountNo   String?  @map("bank_account_no")
+  bankIfsc        String?  @map("bank_ifsc")
+  upiId           String?  @map("upi_id")
+  isAvailable     Boolean  @default(true) @map("is_available")
+  yearsExperience Int?     @map("years_experience")
+  certifications  String[] @default([])
+  languagesSpoken String[] @default([]) @map("languages_spoken")
+  videoIntroUrl   String?  @map("video_intro_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerServices ProviderService[]
+  availability     ProviderAvailability[]
+  portfolioItems   ProviderPortfolio[]
+
+  @@map("provider_profiles")
+}
+
+model ProviderPortfolio {
+  id         String   @id @default(uuid()) @db.Uuid
+  providerId String   @map("provider_id") @db.Uuid
+  mediaUrl   String   @map("media_url")
+  mediaType  String   @map("media_type") // 'image' | 'video'
+  caption    String?
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("provider_portfolio")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  nameHi    String?  @map("name_hi")
+  nameMr    String?  @map("name_mr")
+  nameKn    String?  @map("name_kn")
+  slug      String   @unique
+  iconUrl   String?  @map("icon_url")
+  imageUrl  String?  @map("image_url")
+  parentId  String?  @map("parent_id") @db.Uuid
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  services Service[]
+
+  @@map("categories")
+}
+
+model Service {
+  id           String   @id @default(uuid()) @db.Uuid
+  categoryId   String   @map("category_id") @db.Uuid
+  name         String
+  nameHi       String?  @map("name_hi")
+  nameMr       String?  @map("name_mr")
+  nameKn       String?  @map("name_kn")
+  slug         String   @unique
+  description  String?
+  basePrice    Int      @map("base_price") // paise
+  durationMin  Int      @map("duration_min")
+  imageUrl     String?  @map("image_url")
+  inclusions   String[] @default([])
+  exclusions   String[] @default([])
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  category         Category          @relation(fields: [categoryId], references: [id])
+  providerServices ProviderService[]
+  bookings         Booking[]
+  recurringBookings RecurringBooking[]
+
+  @@map("services")
+}
+
+model ProviderService {
+  id          String  @id @default(uuid()) @db.Uuid
+  providerId  String  @map("provider_id") @db.Uuid
+  serviceId   String  @map("service_id") @db.Uuid
+  customPrice Int     @map("custom_price") // paise
+  isActive    Boolean @default(true) @map("is_active")
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service  Service         @relation(fields: [serviceId], references: [id])
+
+  @@unique([providerId, serviceId])
+  @@map("provider_services")
+}
+
+model Address {
+  id          String  @id @default(uuid()) @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  label       String  // 'Home' | 'Office' | 'Other'
+  addressLine String  @map("address_line")
+  landmark    String?
+  city        String
+  pincode     String
+  latitude    Float?
+  longitude   Float?
+  isDefault   Boolean @default(false) @map("is_default")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  recurringBookings RecurringBooking[]
+
+  @@map("addresses")
+}
+
+model Booking {
+  id                    String        @id @default(uuid()) @db.Uuid
+  customerId            String        @map("customer_id") @db.Uuid
+  providerId            String?       @map("provider_id") @db.Uuid
+  serviceId             String        @map("service_id") @db.Uuid
+  addressId             String        @map("address_id") @db.Uuid
+  status                BookingStatus @default(PENDING_PAYMENT)
+  scheduledDate         DateTime      @map("scheduled_date") @db.Date
+  scheduledHour         Int           @map("scheduled_hour") // 0-23
+  amount                Int           // paise
+  otpCode               String?       @map("otp_code") @db.VarChar(4)
+  customerNotes         String?       @map("customer_notes")
+  cancelReason          String?       @map("cancel_reason")
+  completedAt           DateTime?     @map("completed_at")
+  emergencyContactPhone String?       @map("emergency_contact_phone")
+  emergencyContactName  String?       @map("emergency_contact_name")
+  recurringBookingId    String?       @map("recurring_booking_id") @db.Uuid
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  customer         User              @relation("CustomerBookings", fields: [customerId], references: [id])
+  provider         User?             @relation("ProviderBookings", fields: [providerId], references: [id])
+  service          Service           @relation(fields: [serviceId], references: [id])
+  address          Address           @relation(fields: [addressId], references: [id])
+  recurringBooking RecurringBooking? @relation(fields: [recurringBookingId], references: [id])
+  payment          Payment?
+  review           Review?
+  dispute          Dispute?
+  statusLog        BookingStatusLog[]
+  chatMessages     ChatMessage[]
+  supportTickets   SupportTicket[]
+
+  @@index([customerId, status])
+  @@index([providerId, status])
+  @@index([scheduledDate])
+  @@index([status])
+  @@map("bookings")
+}
+
+model BookingStatusLog {
+  id        String        @id @default(uuid()) @db.Uuid
+  bookingId String        @map("booking_id") @db.Uuid
+  status    BookingStatus
+  changedBy String?       @map("changed_by") @db.Uuid
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User?   @relation("StatusChangedBy", fields: [changedBy], references: [id])
+
+  @@map("booking_status_log")
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  bookingId          String        @unique @map("booking_id") @db.Uuid
+  razorpayOrderId    String?       @unique @map("razorpay_order_id")
+  razorpayPaymentId  String?       @map("razorpay_payment_id")
+  amount             Int           // paise
+  currency           String        @default("INR")
+  status             PaymentStatus @default(PENDING)
+  commission         Int           @default(0) // paise — 20%
+  providerPayout     Int           @default(0) @map("provider_payout") // paise — 80%
+  payoutStatus       PayoutStatus  @default(PENDING) @map("payout_status")
+  razorpayTransferId String?       @map("razorpay_transfer_id")
+  refundId           String?       @map("refund_id")
+  refundAmount       Int?          @map("refund_amount")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model Review {
+  id               String   @id @default(uuid()) @db.Uuid
+  bookingId        String   @unique @map("booking_id") @db.Uuid
+  customerId       String   @map("customer_id") @db.Uuid
+  providerId       String   @map("provider_id") @db.Uuid
+  ratingOverall    Int      @map("rating_overall") // 1-5 computed
+  ratingPunctuality Int     @map("rating_punctuality") // 1-5
+  ratingQuality    Int      @map("rating_quality") // 1-5
+  ratingBehavior   Int      @map("rating_behavior") // 1-5
+  ratingValue      Int      @map("rating_value") // 1-5
+  comment          String?
+  photos           String[] @default([])
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  booking  Booking @relation(fields: [bookingId], references: [id])
+  customer User    @relation("ReviewsGiven", fields: [customerId], references: [id])
+  provider User    @relation("ReviewsReceived", fields: [providerId], references: [id])
+
+  @@map("reviews")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String
+  body      String
+  data      Json?
+  channel   String   @default("push") // 'push' | 'whatsapp' | 'both'
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model ProviderAvailability {
+  id         String  @id @default(uuid()) @db.Uuid
+  providerId String  @map("provider_id") @db.Uuid
+  dayOfWeek  Int     @map("day_of_week") // 0-6, 0=Sunday
+  startHour  Int     @map("start_hour") // 0-23
+  endHour    Int     @map("end_hour") // 0-23
+  isActive   Boolean @default(true) @map("is_active")
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, dayOfWeek])
+  @@map("provider_availability")
+}
+
+model FavoriteProvider {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  providerId String   @map("provider_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer User @relation("CustomerFavorites", fields: [customerId], references: [id], onDelete: Cascade)
+  provider User @relation("ProviderFavoritedBy", fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, providerId])
+  @@map("favorite_providers")
+}
+
+model RecurringBooking {
+  id              String        @id @default(uuid()) @db.Uuid
+  customerId      String        @map("customer_id") @db.Uuid
+  providerId      String        @map("provider_id") @db.Uuid
+  serviceId       String        @map("service_id") @db.Uuid
+  addressId       String        @map("address_id") @db.Uuid
+  frequency       RecurringFreq
+  dayOfWeek       Int           @map("day_of_week") // 0-6
+  preferredHour   Int           @map("preferred_hour") // 0-23
+  isActive        Boolean       @default(true) @map("is_active")
+  nextBookingDate DateTime?     @map("next_booking_date") @db.Date
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  customer User     @relation("RecurringCustomer", fields: [customerId], references: [id])
+  provider User     @relation("RecurringProvider", fields: [providerId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id])
+  address  Address  @relation(fields: [addressId], references: [id])
+  bookings Booking[]
+
+  @@map("recurring_bookings")
+}
+
+model Dispute {
+  id                      String        @id @default(uuid()) @db.Uuid
+  bookingId               String        @unique @map("booking_id") @db.Uuid
+  customerId              String        @map("customer_id") @db.Uuid
+  providerId              String        @map("provider_id") @db.Uuid
+  status                  DisputeStatus @default(OPEN)
+  customerEvidenceText    String?       @map("customer_evidence_text")
+  customerEvidencePhotos  String[]      @default([]) @map("customer_evidence_photos")
+  providerEvidenceText    String?       @map("provider_evidence_text")
+  providerEvidencePhotos  String[]      @default([]) @map("provider_evidence_photos")
+  aiRuling                String?       @map("ai_ruling")
+  aiRulingInFavor         String?       @map("ai_ruling_in_favor") // 'customer' | 'provider'
+  adminOverrideRuling     String?       @map("admin_override_ruling")
+  adminOverrideInFavor    String?       @map("admin_override_in_favor")
+  refundAmount            Int?          @map("refund_amount") // paise
+  createdAt               DateTime      @default(now()) @map("created_at")
+  resolvedAt              DateTime?     @map("resolved_at")
+
+  booking  Booking @relation(fields: [bookingId], references: [id])
+  customer User    @relation("CustomerDisputes", fields: [customerId], references: [id])
+  provider User    @relation("ProviderDisputes", fields: [providerId], references: [id])
+
+  @@map("disputes")
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  bookingId   String?  @map("booking_id") @db.Uuid
+  subject     String
+  description String
+  status      String   @default("open") // 'open' | 'in_progress' | 'resolved'
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("support_tickets")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  bookingId String   @map("booking_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  message   String
+  mediaUrl  String?  @map("media_url")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderId], references: [id])
+
+  @@index([bookingId, createdAt])
+  @@map("chat_messages")
+}
