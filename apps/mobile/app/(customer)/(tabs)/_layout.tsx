@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { Text } from "react-native";
 import { Colors } from "@/constants/theme";
 
 export default function CustomerTabsLayout() {
