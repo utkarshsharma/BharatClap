@@ -1,0 +1,133 @@
+{
+  "app": {
+    "name": "भारतक्लैप",
+    "tagline": "आपका विश्वसनीय सेवा बाज़ार"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "कुछ गलत हो गया",
+    "retry": "पुनः प्रयास करें",
+    "cancel": "रद्द करें",
+    "confirm": "पुष्टि करें",
+    "save": "सहेजें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "done": "हो गया",
+    "next": "अगला",
+    "back": "वापस",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "sort": "क्रमबद्ध करें",
+    "yes": "हां",
+    "no": "नहीं"
+  },
+  "tabs": {
+    "home": "होम",
+    "bookings": "बुकिंग",
+    "profile": "प्रोफ़ाइल",
+    "dashboard": "डैशबोर्ड"
+  },
+  "auth": {
+    "welcome": "भारतक्लैप में आपका स्वागत है",
+    "login": "लॉगिन",
+    "logout": "लॉगआउट",
+    "phoneNumber": "फ़ोन नंबर",
+    "enterPhone": "अपना फ़ोन नंबर दर्ज करें",
+    "sendOtp": "OTP भेजें",
+    "verifyOtp": "OTP सत्यापित करें",
+    "enterOtp": "6 अंकों का OTP दर्ज करें",
+    "resendOtp": "OTP पुनः भेजें",
+    "selectRole": "अपनी भूमिका चुनें",
+    "customer": "ग्राहक",
+    "provider": "सेवा प्रदाता",
+    "iAmCustomer": "मुझे सेवाएं चाहिए",
+    "iAmProvider": "मैं सेवाएं प्रदान करता हूं"
+  },
+  "booking": {
+    "newBooking": "नई बुकिंग",
+    "myBookings": "मेरी बुकिंग",
+    "bookingDetails": "बुकिंग विवरण",
+    "selectService": "सेवा चुनें",
+    "selectProvider": "सेवा प्रदाता चुनें",
+    "selectDateTime": "तारीख और समय चुनें",
+    "selectAddress": "पता चुनें",
+    "confirmBooking": "बुकिंग की पुष्टि करें",
+    "bookingConfirmed": "बुकिंग पुष्टि हो गई",
+    "cancelBooking": "बुकिंग रद्द करें",
+    "rescheduleBooking": "बुकिंग पुनर्निर्धारित करें",
+    "status": {
+      "pending": "लंबित",
+      "accepted": "स्वीकृत",
+      "inProgress": "प्रगति में",
+      "completed": "पूर्ण",
+      "cancelled": "रद्द",
+      "rejected": "अस्वीकृत"
+    }
+  },
+  "service": {
+    "services": "सेवाएं",
+    "categories": "श्रेणियां",
+    "serviceDetails": "सेवा विवरण",
+    "basePrice": "मूल मूल्य",
+    "duration": "अवधि",
+    "description": "विवरण"
+  },
+  "provider": {
+    "providers": "सेवा प्रदाता",
+    "providerDetails": "प्रदाता विवरण",
+    "rating": "रेटिंग",
+    "reviews": "समीक्षाएं",
+    "completedBookings": "पूर्ण बुकिंग",
+    "favorites": "पसंदीदा",
+    "addToFavorites": "पसंदीदा में जोड़ें",
+    "removeFromFavorites": "पसंदीदा से हटाएं"
+  },
+  "profile": {
+    "myProfile": "मेरी प्रोफ़ाइल",
+    "editProfile": "प्रोफ़ाइल संपादित करें",
+    "name": "नाम",
+    "email": "ईमेल",
+    "phone": "फ़ोन",
+    "city": "शहर",
+    "bio": "परिचय",
+    "settings": "सेटिंग्स",
+    "notifications": "सूचनाएं",
+    "help": "सहायता और समर्थन",
+    "about": "बारे में"
+  },
+  "payment": {
+    "payment": "भुगतान",
+    "paymentMethod": "भुगतान का तरीका",
+    "payNow": "अभी भुगतान करें",
+    "totalAmount": "कुल राशि",
+    "paymentSuccessful": "भुगतान सफल",
+    "paymentFailed": "भुगतान विफल"
+  },
+  "review": {
+    "writeReview": "समीक्षा लिखें",
+    "rating": "रेटिंग",
+    "comment": "टिप्पणी",
+    "submitReview": "समीक्षा सबमिट करें",
+    "yourReview": "आपकी समीक्षा"
+  },
+  "notifications": {
+    "notifications": "सूचनाएं",
+    "noNotifications": "कोई सूचना नहीं",
+    "markAsRead": "पढ़ा हुआ चिह्नित करें",
+    "markAllAsRead": "सभी को पढ़ा हुआ चिह्नित करें"
+  },
+  "search": {
+    "searchServices": "सेवाएं खोजें...",
+    "searchProviders": "सेवा प्रदाता खोजें...",
+    "recentSearches": "हाल की खोजें",
+    "popularServices": "लोकप्रिय सेवाएं",
+    "noResults": "कोई परिणाम नहीं मिला"
+  },
+  "errors": {
+    "networkError": "नेटवर्क त्रुटि। कृपया अपना कनेक्शन जांचें।",
+    "serverError": "सर्वर त्रुटि। कृपया बाद में पुनः प्रयास करें।",
+    "invalidPhone": "कृपया एक मान्य फ़ोन नंबर दर्ज करें",
+    "invalidOtp": "कृपया एक मान्य OTP दर्ज करें",
+    "invalidEmail": "कृपया एक मान्य ईमेल पता दर्ज करें"
+  }
+}

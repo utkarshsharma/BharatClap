@@ -1,0 +1,133 @@
+{
+  "app": {
+    "name": "ಭಾರತ್‌ಕ್ಲಾಪ್",
+    "tagline": "ನಿಮ್ಮ ವಿಶ್ವಾಸಾರ್ಹ ಸೇವಾ ಮಾರುಕಟ್ಟೆ"
+  },
+  "common": {
+    "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ...",
+    "error": "ಏನೋ ತಪ್ಪಾಗಿದೆ",
+    "retry": "ಮರುಪ್ರಯತ್ನಿಸಿ",
+    "cancel": "ರದ್ದುಮಾಡಿ",
+    "confirm": "ದೃಢೀಕರಿಸಿ",
+    "save": "ಉಳಿಸಿ",
+    "delete": "ಅಳಿಸಿ",
+    "edit": "ಸಂಪಾದಿಸಿ",
+    "done": "ಮುಗಿದಿದೆ",
+    "next": "ಮುಂದೆ",
+    "back": "ಹಿಂದೆ",
+    "search": "ಹುಡುಕಿ",
+    "filter": "ಫಿಲ್ಟರ್",
+    "sort": "ವಿಂಗಡಿಸಿ",
+    "yes": "ಹೌದು",
+    "no": "ಇಲ್ಲ"
+  },
+  "tabs": {
+    "home": "ಹೋಮ್",
+    "bookings": "ಬುಕಿಂಗ್",
+    "profile": "ಪ್ರೊಫೈಲ್",
+    "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್"
+  },
+  "auth": {
+    "welcome": "ಭಾರತ್‌ಕ್ಲಾಪ್‌ಗೆ ಸ್ವಾಗತ",
+    "login": "ಲಾಗಿನ್",
+    "logout": "ಲಾಗ್‌ಔಟ್",
+    "phoneNumber": "ಫೋನ್ ನಂಬರ್",
+    "enterPhone": "ನಿಮ್ಮ ಫೋನ್ ನಂಬರ್ ನಮೂದಿಸಿ",
+    "sendOtp": "OTP ಕಳುಹಿಸಿ",
+    "verifyOtp": "OTP ಪರಿಶೀಲಿಸಿ",
+    "enterOtp": "6 ಅಂಕಿಯ OTP ನಮೂದಿಸಿ",
+    "resendOtp": "OTP ಮರುಕಳುಹಿಸಿ",
+    "selectRole": "ನಿಮ್ಮ ಪಾತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "customer": "ಗ್ರಾಹಕ",
+    "provider": "ಸೇವಾ ಪೂರೈಕೆದಾರ",
+    "iAmCustomer": "ನನಗೆ ಸೇವೆಗಳು ಬೇಕು",
+    "iAmProvider": "ನಾನು ಸೇವೆಗಳನ್ನು ಒದಗಿಸುತ್ತೇನೆ"
+  },
+  "booking": {
+    "newBooking": "ಹೊಸ ಬುಕಿಂಗ್",
+    "myBookings": "ನನ್ನ ಬುಕಿಂಗ್‌ಗಳು",
+    "bookingDetails": "ಬುಕಿಂಗ್ ವಿವರಗಳು",
+    "selectService": "ಸೇವೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "selectProvider": "ಸೇವಾ ಪೂರೈಕೆದಾರರನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "selectDateTime": "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ ಆಯ್ಕೆಮಾಡಿ",
+    "selectAddress": "ವಿಳಾಸ ಆಯ್ಕೆಮಾಡಿ",
+    "confirmBooking": "ಬುಕಿಂಗ್ ದೃಢೀಕರಿಸಿ",
+    "bookingConfirmed": "ಬುಕಿಂಗ್ ದೃಢೀಕರಿಸಲಾಗಿದೆ",
+    "cancelBooking": "ಬುಕಿಂಗ್ ರದ್ದುಮಾಡಿ",
+    "rescheduleBooking": "ಬುಕಿಂಗ್ ಮರುನಿಗದಿಮಾಡಿ",
+    "status": {
+      "pending": "ಬಾಕಿ",
+      "accepted": "ಸ್ವೀಕರಿಸಲಾಗಿದೆ",
+      "inProgress": "ಪ್ರಗತಿಯಲ್ಲಿದೆ",
+      "completed": "ಪೂರ್ಣಗೊಂಡಿದೆ",
+      "cancelled": "ರದ್ದಾಗಿದೆ",
+      "rejected": "ತಿರಸ್ಕರಿಸಲಾಗಿದೆ"
+    }
+  },
+  "service": {
+    "services": "ಸೇವೆಗಳು",
+    "categories": "ವರ್ಗಗಳು",
+    "serviceDetails": "ಸೇವಾ ವಿವರಗಳು",
+    "basePrice": "ಮೂಲ ಬೆಲೆ",
+    "duration": "ಅವಧಿ",
+    "description": "ವಿವರಣೆ"
+  },
+  "provider": {
+    "providers": "ಸೇವಾ ಪೂರೈಕೆದಾರರು",
+    "providerDetails": "ಪೂರೈಕೆದಾರ ವಿವರಗಳು",
+    "rating": "ರೇಟಿಂಗ್",
+    "reviews": "ವಿಮರ್ಶೆಗಳು",
+    "completedBookings": "ಪೂರ್ಣಗೊಂಡ ಬುಕಿಂಗ್‌ಗಳು",
+    "favorites": "ಮೆಚ್ಚಿನವು",
+    "addToFavorites": "ಮೆಚ್ಚಿನವುಗಳಿಗೆ ಸೇರಿಸಿ",
+    "removeFromFavorites": "ಮೆಚ್ಚಿನವುಗಳಿಂದ ತೆಗೆದುಹಾಕಿ"
+  },
+  "profile": {
+    "myProfile": "ನನ್ನ ಪ್ರೊಫೈಲ್",
+    "editProfile": "ಪ್ರೊಫೈಲ್ ಸಂಪಾದಿಸಿ",
+    "name": "ಹೆಸರು",
+    "email": "ಇಮೇಲ್",
+    "phone": "ಫೋನ್",
+    "city": "ನಗರ",
+    "bio": "ಪರಿಚಯ",
+    "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    "notifications": "ಅಧಿಸೂಚನೆಗಳು",
+    "help": "ಸಹಾಯ ಮತ್ತು ಬೆಂಬಲ",
+    "about": "ಕುರಿತು"
+  },
+  "payment": {
+    "payment": "ಪಾವತಿ",
+    "paymentMethod": "ಪಾವತಿ ವಿಧಾನ",
+    "payNow": "ಈಗ ಪಾವತಿಸಿ",
+    "totalAmount": "ಒಟ್ಟು ಮೊತ್ತ",
+    "paymentSuccessful": "ಪಾವತಿ ಯಶಸ್ವಿ",
+    "paymentFailed": "ಪಾವತಿ ವಿಫಲವಾಗಿದೆ"
+  },
+  "review": {
+    "writeReview": "ವಿಮರ್ಶೆ ಬರೆಯಿರಿ",
+    "rating": "ರೇಟಿಂಗ್",
+    "comment": "ಟಿಪ್ಪಣಿ",
+    "submitReview": "ವಿಮರ್ಶೆ ಸಲ್ಲಿಸಿ",
+    "yourReview": "ನಿಮ್ಮ ವಿಮರ್ಶೆ"
+  },
+  "notifications": {
+    "notifications": "ಅಧಿಸೂಚನೆಗಳು",
+    "noNotifications": "ಯಾವುದೇ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ",
+    "markAsRead": "ಓದಿದ ಎಂದು ಗುರುತಿಸಿ",
+    "markAllAsRead": "ಎಲ್ಲವನ್ನೂ ಓದಿದ ಎಂದು ಗುರುತಿಸಿ"
+  },
+  "search": {
+    "searchServices": "ಸೇವೆಗಳನ್ನು ಹುಡುಕಿ...",
+    "searchProviders": "ಸೇವಾ ಪೂರೈಕೆದಾರರನ್ನು ಹುಡುಕಿ...",
+    "recentSearches": "ಇತ್ತೀಚಿನ ಹುಡುಕಾಟಗಳು",
+    "popularServices": "ಜನಪ್ರಿಯ ಸೇವೆಗಳು",
+    "noResults": "ಯಾವುದೇ ಫಲಿತಾಂಶಗಳು ಕಂಡುಬಂದಿಲ್ಲ"
+  },
+  "errors": {
+    "networkError": "ನೆಟ್‌ವರ್ಕ್ ದೋಷ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ.",
+    "serverError": "ಸರ್ವರ್ ದೋಷ. ದಯವಿಟ್ಟು ನಂತರ ಮರುಪ್ರಯತ್ನಿಸಿ.",
+    "invalidPhone": "ದಯವಿಟ್ಟು ಮಾನ್ಯ ಫೋನ್ ನಂಬರ್ ನಮೂದಿಸಿ",
+    "invalidOtp": "ದಯವಿಟ್ಟು ಮಾನ್ಯ OTP ನಮೂದಿಸಿ",
+    "invalidEmail": "ದಯವಿಟ್ಟು ಮಾನ್ಯ ಇಮೇಲ್ ವಿಳಾಸ ನಮೂದಿಸಿ"
+  }
+}
