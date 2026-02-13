@@ -20,6 +20,13 @@ export interface Service {
   isActive: boolean;
 }
 
+function mapService(raw: any): Service {
+  return {
+    ...raw,
+    estimatedDuration: raw.durationMin ?? raw.estimatedDuration ?? 0,
+  };
+}
+
 export interface GetServicesParams {
   categorySlug?: string;
   city?: string;
@@ -41,11 +48,13 @@ export const catalogService = {
 
   getServices: async (params?: GetServicesParams): Promise<{ services: Service[]; total: number }> => {
     const response = await api.get('/services', { params });
-    return { services: response.data.data ?? response.data, total: response.data.meta?.total ?? 0 };
+    const raw = response.data.data ?? response.data;
+    return { services: Array.isArray(raw) ? raw.map(mapService) : [], total: response.data.meta?.total ?? 0 };
   },
 
   getServiceBySlug: async (slug: string): Promise<Service> => {
     const response = await api.get(`/services/${slug}`);
-    return response.data.data ?? response.data;
+    const raw = response.data.data ?? response.data;
+    return mapService(raw);
   },
 };

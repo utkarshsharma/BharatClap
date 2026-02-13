@@ -12,9 +12,10 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { providerService, type Provider } from "@/services/providers";
 import { useBookingStore } from "@/store/bookingStore";
+import { useAuthStore } from "@/store/authStore";
 import { formatRating, formatCurrency } from "@/utils/format";
 
-type SortOption = "rating" | "price";
+type SortOption = "rating" | "price" | "distance";
 
 export default function ProviderSelectionScreen() {
   const router = useRouter();
@@ -32,12 +33,19 @@ export default function ProviderSelectionScreen() {
 
   const setSelectedService = useBookingStore((s) => s.setSelectedService);
   const setSelectedProvider = useBookingStore((s) => s.setSelectedProvider);
+  const userLat = useAuthStore((s) => s.lat);
+  const userLng = useAuthStore((s) => s.lng);
 
   const [sortBy, setSortBy] = useState<SortOption>("rating");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["providers", serviceId],
-    queryFn: () => providerService.getProviders({ serviceId }),
+    queryKey: ["providers", serviceId, userLat, userLng],
+    queryFn: () =>
+      providerService.getProviders({
+        serviceId,
+        lat: userLat ?? undefined,
+        lng: userLng ?? undefined,
+      }),
     enabled: !!serviceId,
   });
 
@@ -46,9 +54,10 @@ export default function ProviderSelectionScreen() {
     const sorted = [...list];
     if (sortBy === "rating") {
       sorted.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === "distance") {
+      sorted.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     } else {
-      // Sort by price — use completedBookings as a proxy if no custom price
-      sorted.sort((a, b) => (a as any).customPrice - (b as any).customPrice);
+      sorted.sort((a, b) => ((a as any).customPrice ?? Infinity) - ((b as any).customPrice ?? Infinity));
     }
     return sorted;
   }, [data, sortBy]);
@@ -107,9 +116,16 @@ export default function ProviderSelectionScreen() {
           </View>
 
           {/* Stats */}
-          <Text className="text-xs text-gray-400">
-            {item.completedBookings} bookings completed
-          </Text>
+          <View className="flex-row items-center">
+            <Text className="text-xs text-gray-400">
+              {item.completedBookings} bookings completed
+            </Text>
+            {item.distance != null && (
+              <Text className="text-xs text-gray-400 ml-2">
+                • {item.distance.toFixed(1)} km away
+              </Text>
+            )}
+          </View>
         </View>
 
         {/* Price */}
@@ -154,7 +170,7 @@ export default function ProviderSelectionScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setSortBy("price")}
-          className={`px-4 py-1.5 rounded-full ${
+          className={`px-4 py-1.5 rounded-full mr-2 ${
             sortBy === "price" ? "bg-primary" : "bg-gray-100"
           }`}
           activeOpacity={0.7}
@@ -167,6 +183,23 @@ export default function ProviderSelectionScreen() {
             Price
           </Text>
         </TouchableOpacity>
+        {userLat != null && userLng != null && (
+          <TouchableOpacity
+            onPress={() => setSortBy("distance")}
+            className={`px-4 py-1.5 rounded-full ${
+              sortBy === "distance" ? "bg-primary" : "bg-gray-100"
+            }`}
+            activeOpacity={0.7}
+          >
+            <Text
+              className={`text-sm font-semibold ${
+                sortBy === "distance" ? "text-white" : "text-gray-600"
+              }`}
+            >
+              Distance
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Provider List */}

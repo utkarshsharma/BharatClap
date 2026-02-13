@@ -16,7 +16,7 @@ interface Provider {
 }
 
 interface Address {
-  id?: string;
+  id: string;
   line1: string;
   line2?: string;
   city: string;

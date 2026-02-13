@@ -20,7 +20,11 @@ export interface GetNotificationsParams {
 export const notificationService = {
   getNotifications: async (params?: GetNotificationsParams): Promise<{ notifications: Notification[]; total: number }> => {
     const response = await api.get('/notifications', { params });
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return {
+      notifications: Array.isArray(raw) ? raw : [],
+      total: response.data.meta?.total ?? 0,
+    };
   },
 
   markAsRead: async (id: string): Promise<void> => {

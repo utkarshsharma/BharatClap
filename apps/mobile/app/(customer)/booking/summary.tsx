@@ -41,22 +41,11 @@ export default function BookingSummaryScreen() {
       const booking = await bookingService.createBooking({
         serviceId: selectedService!.id,
         providerId: selectedProvider!.id,
+        addressId: selectedAddress!.id,
         scheduledDate: selectedDate!,
         scheduledHour: selectedHour!,
-        addressId: selectedAddress?.id,
-        address: selectedAddress
-          ? {
-              line1: selectedAddress.line1,
-              line2: selectedAddress.line2,
-              city: selectedAddress.city,
-              state: selectedAddress.state,
-              pincode: selectedAddress.pincode,
-              lat: selectedAddress.lat,
-              lng: selectedAddress.lng,
-            }
-          : undefined,
         customerNotes: localNotes || undefined,
-        emergencyContact: localEmergency || undefined,
+        emergencyContactPhone: localEmergency || undefined,
       });
 
       // 2. Create a Razorpay payment order
@@ -72,9 +61,13 @@ export default function BookingSummaryScreen() {
       );
     },
     onError: (error: any) => {
+      const msg =
+        error?.response?.data?.message ??
+        error?.message ??
+        "Something went wrong. Please try again.";
       Alert.alert(
         "Booking Failed",
-        error?.message ?? "Something went wrong. Please try again."
+        Array.isArray(msg) ? msg.join('\n') : msg
       );
     },
   });

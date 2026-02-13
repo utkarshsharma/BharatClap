@@ -3,20 +3,12 @@ import api from './api';
 export interface CreateBookingData {
   serviceId: string;
   providerId: string;
+  addressId: string;
   scheduledDate: string;
   scheduledHour: number;
-  addressId?: string;
-  address?: {
-    line1: string;
-    line2?: string;
-    city: string;
-    state: string;
-    pincode: string;
-    lat?: number;
-    lng?: number;
-  };
   customerNotes?: string;
-  emergencyContact?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }
 
 export interface Booking {
@@ -36,8 +28,33 @@ export interface Booking {
   cancellationReason?: string;
   rejectionReason?: string;
   finalPrice?: number;
+  amount?: number;
+  serviceName?: string;
+  providerName?: string;
+  customerName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function mapBooking(raw: any): Booking {
+  return {
+    ...raw,
+    serviceName: raw.service?.name ?? raw.serviceName,
+    providerName: raw.provider?.name ?? raw.providerName,
+    customerName: raw.customer?.name ?? raw.customerName,
+    finalPrice: raw.finalPrice ?? raw.amount,
+    address: raw.address
+      ? {
+          line1: raw.address.addressLine ?? raw.address.line1 ?? raw.address.label ?? '',
+          line2: raw.address.line2,
+          city: raw.address.city ?? '',
+          state: raw.address.state ?? '',
+          pincode: raw.address.pincode ?? '',
+          lat: raw.address.lat,
+          lng: raw.address.lng,
+        }
+      : undefined,
+  };
 }
 
 export interface GetBookingsParams {
@@ -55,12 +72,17 @@ export const bookingService = {
 
   getBookings: async (params?: GetBookingsParams): Promise<{ bookings: Booking[]; total: number }> => {
     const response = await api.get('/bookings', { params });
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return {
+      bookings: Array.isArray(raw) ? raw.map(mapBooking) : [],
+      total: response.data.meta?.total ?? 0,
+    };
   },
 
   getBookingById: async (id: string): Promise<Booking> => {
     const response = await api.get(`/bookings/${id}`);
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return mapBooking(raw);
   },
 
   acceptBooking: async (id: string): Promise<Booking> => {

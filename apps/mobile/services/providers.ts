@@ -14,6 +14,28 @@ export interface Provider {
   isActive: boolean;
   isVerified: boolean;
   isFavorite?: boolean;
+  customPrice?: number;
+  distance?: number | null;
+}
+
+// Maps raw API provider object to the Provider interface
+function mapProvider(raw: any): Provider {
+  return {
+    id: raw.id,
+    name: raw.user?.name ?? 'Provider',
+    phone: raw.user?.phone ?? '',
+    email: raw.user?.email,
+    avatar: raw.user?.avatarUrl,
+    bio: raw.bio,
+    city: raw.city ?? '',
+    rating: raw.avgRating ?? 0,
+    reviewCount: raw.totalJobs ?? 0,
+    completedBookings: raw.totalJobs ?? 0,
+    isActive: raw.isAvailable ?? true,
+    isVerified: raw.aadhaarVerified ?? false,
+    customPrice: raw.providerServices?.[0]?.customPrice,
+    distance: raw.distance ?? null,
+  };
 }
 
 export interface GetProvidersParams {
@@ -56,12 +78,14 @@ export interface PortfolioItem {
 export const providerService = {
   getProviders: async (params?: GetProvidersParams): Promise<{ providers: Provider[]; total: number }> => {
     const response = await api.get('/providers', { params });
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return { providers: Array.isArray(raw) ? raw.map(mapProvider) : [], total: response.data.meta?.total ?? 0 };
   },
 
   getProviderById: async (id: string): Promise<Provider> => {
     const response = await api.get(`/providers/${id}`);
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return mapProvider(raw);
   },
 
   addFavorite: async (providerId: string): Promise<void> => {
@@ -80,12 +104,14 @@ export const providerService = {
   // Provider self-management
   getOwnProfile: async (): Promise<Provider> => {
     const response = await api.get('/provider/profile');
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return mapProvider(raw);
   },
 
   updateProfile: async (data: UpdateProfileData): Promise<Provider> => {
     const response = await api.patch('/provider/profile', data);
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return mapProvider(raw);
   },
 
   getOwnServices: async (): Promise<ProviderService[]> => {

@@ -32,7 +32,12 @@ export const reviewService = {
     params?: GetReviewsParams
   ): Promise<{ reviews: Review[]; total: number; avgRating: number }> => {
     const response = await api.get(`/providers/${providerId}/reviews`, { params });
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    return {
+      reviews: Array.isArray(raw) ? raw : (raw.reviews ?? []),
+      total: response.data.meta?.total ?? raw.total ?? 0,
+      avgRating: response.data.avgRating ?? raw.avgRating ?? 0,
+    };
   },
 
   getBookingReview: async (bookingId: string): Promise<Review> => {

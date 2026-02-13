@@ -63,12 +63,22 @@ export class BookingsService {
     }
 
     // Validate provider exists and offers the service
-    const providerUser = await this.prisma.user.findUnique({
+    // Accept either User.id or ProviderProfile.id (mobile sends profile ID, web sends user ID)
+    let providerUser = await this.prisma.user.findUnique({
       where: { id: dto.providerId },
       include: {
         providerProfile: true,
       },
     });
+
+    if (!providerUser) {
+      // Fallback: check if providerId is a ProviderProfile.id and resolve to the User
+      const profile = await this.prisma.providerProfile.findUnique({
+        where: { id: dto.providerId },
+        include: { user: { include: { providerProfile: true } } },
+      });
+      providerUser = profile?.user ?? null;
+    }
 
     if (!providerUser) {
       throw new NotFoundException('Provider not found');
@@ -149,7 +159,7 @@ export class BookingsService {
     const booking = await this.prisma.booking.create({
       data: {
         customerId,
-        providerId: dto.providerId,
+        providerId: providerUser.id,
         serviceId: dto.serviceId,
         addressId: dto.addressId,
         scheduledDate: scheduledDateTime,
