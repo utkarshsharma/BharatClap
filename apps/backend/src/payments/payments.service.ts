@@ -18,13 +18,21 @@ export class PaymentsService {
     private razorpayService: RazorpayService,
   ) {}
 
-  async createPaymentOrder(bookingId: string, amount: number) {
+  async createPaymentOrder(bookingId: string, amountOverride?: number) {
     // Check if payment already exists for this booking
     const existingPayment = await this.prisma.payment.findUnique({
       where: { bookingId },
     });
 
     if (existingPayment) {
+      // If existing payment is still PENDING, return its order info
+      if (existingPayment.status === PaymentStatus.PENDING) {
+        return {
+          orderId: existingPayment.razorpayOrderId,
+          amount: existingPayment.amount,
+          currency: existingPayment.currency,
+        };
+      }
       throw new ConflictException('Payment already exists for this booking');
     }
 
@@ -36,6 +44,14 @@ export class PaymentsService {
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
+
+    if (booking.status !== BookingStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        `Cannot create payment for booking with status: ${booking.status}`,
+      );
+    }
+
+    const amount = amountOverride ?? booking.amount;
 
     // Create Razorpay order
     const order = await this.razorpayService.createOrder(amount, bookingId);
@@ -62,6 +78,65 @@ export class PaymentsService {
       currency: order.currency,
       payment,
     };
+  }
+
+  async verifyPayment(
+    bookingId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+  ) {
+    // Verify signature
+    const isValid = this.razorpayService.verifyPaymentSignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    );
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid payment signature');
+    }
+
+    // Find payment by bookingId
+    const payment = await this.prisma.payment.findUnique({
+      where: { bookingId },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found for this booking');
+    }
+
+    // Idempotent: if already captured, return success
+    if (payment.status === PaymentStatus.CAPTURED) {
+      return { verified: true, status: 'already_captured' };
+    }
+
+    // Calculate commission (20%) and provider payout (80%)
+    const commission = Math.floor(payment.amount * 0.2);
+    const providerPayout = payment.amount - commission;
+
+    // Update payment with razorpay details
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        razorpayPaymentId,
+        status: PaymentStatus.CAPTURED,
+        commission,
+        providerPayout,
+      },
+    });
+
+    // Update booking status to CONFIRMED
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.CONFIRMED },
+    });
+
+    this.logger.log(
+      `Payment verified for booking: ${bookingId}, paymentId: ${razorpayPaymentId}`,
+    );
+
+    return { verified: true, status: 'captured' };
   }
 
   async handleWebhook(body: any, signature: string) {

@@ -128,6 +128,23 @@ export class CatalogService {
       where.categoryId = category.id;
     }
 
+    // Filter by city: only show services that have at least one provider in the given city
+    if (city) {
+      where.providerServices = {
+        some: {
+          isActive: true,
+          provider: {
+            user: {
+              city: {
+                contains: city,
+                mode: 'insensitive',
+              },
+            },
+          },
+        },
+      };
+    }
+
     // Price filter (convert rupees to paise)
     if (minPrice !== undefined || maxPrice !== undefined) {
       where.basePrice = {};
@@ -192,7 +209,7 @@ export class CatalogService {
   /**
    * Get service by slug with detailed information
    */
-  async getServiceBySlug(slug: string) {
+  async getServiceBySlug(slug: string, lat?: number, lng?: number) {
     const service = await this.prisma.service.findUnique({
       where: { slug, isActive: true },
       include: {
@@ -219,6 +236,15 @@ export class CatalogService {
                 bio: true,
                 avgRating: true,
                 totalJobs: true,
+                baseLatitude: true,
+                baseLongitude: true,
+                serviceRadiusKm: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -230,12 +256,48 @@ export class CatalogService {
       throw new NotFoundException(`Service with slug '${slug}' not found`);
     }
 
-    // Calculate aggregate statistics
-    const providerCount = service.providerServices.length;
+    // Map providers with optional distance
+    let providers = service.providerServices.map((ps: any) => {
+      const base: any = {
+        id: ps.provider.id,
+        userId: ps.provider.user?.id,
+        name: ps.provider.user?.name || 'Service Provider',
+        bio: ps.provider.bio,
+        avgRating: ps.provider.avgRating,
+        totalJobs: ps.provider.totalJobs,
+        price: ps.customPrice || service.basePrice,
+      };
 
-    const prices = service.providerServices
-      .map((ps) => ps.customPrice || service.basePrice)
-      .filter((price) => price > 0);
+      if (
+        lat !== undefined &&
+        lng !== undefined &&
+        ps.provider.baseLatitude &&
+        ps.provider.baseLongitude
+      ) {
+        base.distance = this.calculateDistance(
+          lat,
+          lng,
+          ps.provider.baseLatitude,
+          ps.provider.baseLongitude,
+        );
+      }
+
+      return base;
+    });
+
+    // When lat/lng provided, filter out providers beyond 50km and sort by distance
+    if (lat !== undefined && lng !== undefined) {
+      providers = providers
+        .filter((p: any) => p.distance !== undefined && p.distance <= 50)
+        .sort((a: any, b: any) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    }
+
+    // Calculate aggregate statistics
+    const providerCount = providers.length;
+
+    const prices = providers
+      .map((p: any) => p.price)
+      .filter((price: number) => price > 0);
 
     const minPrice = prices.length > 0 ? Math.min(...prices) : service.basePrice;
     const maxPrice = prices.length > 0 ? Math.max(...prices) : service.basePrice;
@@ -264,13 +326,26 @@ export class CatalogService {
         minPrice,
         maxPrice,
       },
-      providers: service.providerServices.map((ps: any) => ({
-        id: ps.provider.id,
-        bio: ps.provider.bio,
-        avgRating: ps.provider.avgRating,
-        totalJobs: ps.provider.totalJobs,
-        price: ps.customPrice || service.basePrice,
-      })),
+      providers,
     };
+  }
+
+  // Haversine distance calculation (returns km)
+  private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 }

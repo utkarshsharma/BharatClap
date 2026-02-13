@@ -1,25 +1,6 @@
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Home } from 'lucide-react'
-
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Simple Navbar */}
-      <nav className="border-b bg-white">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="bg-primary text-white p-2 rounded-lg">
-              <Home className="h-6 w-6" />
-            </div>
-            <span className="text-2xl font-bold text-primary">BharatClap</span>
-          </Link>
-          <Button asChild variant="outline">
-            <Link href="/">Back to Home</Link>
-          </Button>
-        </div>
-      </nav>
-
+    <>
       {/* Privacy Policy Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
@@ -167,6 +148,6 @@ export default function PrivacyPage() {
           </section>
         </div>
       </div>
-    </div>
+    </>
   )
 }

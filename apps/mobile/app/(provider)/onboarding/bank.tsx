@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import api from "@/services/api";
 
 type TabType = "bank" | "upi";
 
@@ -27,6 +28,8 @@ export default function ProviderBankScreen() {
 
   // UPI form state
   const [upiId, setUpiId] = useState("");
+
+  const [saving, setSaving] = useState(false);
 
   const validateBank = (): boolean => {
     if (!accountNumber.trim()) {
@@ -68,15 +71,34 @@ export default function ProviderBankScreen() {
     return true;
   };
 
-  const handleSaveBank = () => {
-    if (validateBank()) {
+  const handleSaveBank = async () => {
+    if (!validateBank()) return;
+    setSaving(true);
+    try {
+      await api.patch('/provider/bank', {
+        bankAccountNo: accountNumber,
+        bankIfsc: ifscCode.toUpperCase(),
+      });
       Alert.alert("Success", "Bank account details saved!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save bank details. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSaveUpi = () => {
-    if (validateUpi()) {
+  const handleSaveUpi = async () => {
+    if (!validateUpi()) return;
+    setSaving(true);
+    try {
+      await api.patch('/provider/bank', {
+        upiId,
+      });
       Alert.alert("Success", "UPI details saved!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save UPI details. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -233,10 +255,11 @@ export default function ProviderBankScreen() {
 
               <TouchableOpacity
                 onPress={handleSaveBank}
-                className="bg-[#FF6B00] rounded-xl py-4 items-center mb-8"
+                disabled={saving}
+                className={`rounded-xl py-4 items-center mb-8 ${saving ? "bg-[#FFB074]" : "bg-[#FF6B00]"}`}
               >
                 <Text className="text-base font-bold text-white">
-                  Save Bank Details
+                  {saving ? "Saving..." : "Save Bank Details"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -266,9 +289,12 @@ export default function ProviderBankScreen() {
 
               <TouchableOpacity
                 onPress={handleSaveUpi}
-                className="bg-[#FF6B00] rounded-xl py-4 items-center mb-8"
+                disabled={saving}
+                className={`rounded-xl py-4 items-center mb-8 ${saving ? "bg-[#FFB074]" : "bg-[#FF6B00]"}`}
               >
-                <Text className="text-base font-bold text-white">Save UPI Details</Text>
+                <Text className="text-base font-bold text-white">
+                  {saving ? "Saving..." : "Save UPI Details"}
+                </Text>
               </TouchableOpacity>
             </View>
           )}

@@ -10,6 +10,7 @@ interface Service {
 interface Provider {
   id: string;
   name: string;
+  city?: string;
   rating: number;
   reviewCount: number;
 }

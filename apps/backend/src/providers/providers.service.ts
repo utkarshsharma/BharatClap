@@ -71,6 +71,31 @@ export class ProvidersService {
     });
   }
 
+  async getOwnServices(userId: string) {
+    const profile = await this.prisma.providerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Provider profile not found');
+    }
+
+    return this.prisma.providerService.findMany({
+      where: { providerId: profile.id, isActive: true },
+      include: {
+        service: {
+          select: {
+            id: true,
+            name: true,
+            categoryId: true,
+            basePrice: true,
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+  }
+
   async addService(userId: string, dto: AddProviderServiceDto) {
     const profile = await this.prisma.providerProfile.findUnique({
       where: { userId },

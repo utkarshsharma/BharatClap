@@ -6,9 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { userService } from "@/services/users";
 import { useAuthStore } from "@/store/authStore";
 import { formatPhone } from "@/utils/format";
 
@@ -20,10 +23,20 @@ interface MenuItem {
 
 export default function CustomerProfileScreen() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
+  const authUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
-  const initials = (user?.name ?? "U")
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: userService.getProfile,
+  });
+
+  const displayName = profile?.name ?? authUser?.name ?? "Guest User";
+  const displayPhone = profile?.phone ?? authUser?.phone;
+  const displayEmail = profile?.email ?? authUser?.email;
+  const displayCity = profile?.city;
+
+  const initials = (displayName)
     .split(" ")
     .map((w) => w[0])
     .join("")
@@ -44,40 +57,36 @@ export default function CustomerProfileScreen() {
     ]);
   };
 
-  const comingSoon = (feature: string) => {
-    Alert.alert("Coming Soon", `${feature} will be available in a future update.`);
-  };
-
   const menuItems: MenuItem[] = [
     {
       label: "Edit Profile",
-      icon: "👤",
-      onPress: () => comingSoon("Edit Profile"),
+      icon: "\u270F\uFE0F",
+      onPress: () => router.push("/(common)/edit-profile" as any),
     },
     {
       label: "My Addresses",
-      icon: "📍",
-      onPress: () => comingSoon("My Addresses"),
+      icon: "\uD83D\uDCCD",
+      onPress: () => Alert.alert("Coming Soon", "Address management will be available in a future update."),
     },
     {
       label: "Favorite Providers",
-      icon: "❤️",
-      onPress: () => comingSoon("Favorite Providers"),
+      icon: "\u2764\uFE0F",
+      onPress: () => router.push("/(customer)/favorites" as any),
     },
     {
       label: "Notifications",
-      icon: "🔔",
-      onPress: () => comingSoon("Notifications"),
+      icon: "\uD83D\uDD14",
+      onPress: () => router.push("/(customer)/notifications" as any),
     },
     {
       label: "Help & Support",
-      icon: "💬",
-      onPress: () => comingSoon("Help & Support"),
+      icon: "\uD83D\uDCAC",
+      onPress: () => router.push("/(customer)/help" as any),
     },
     {
-      label: "About",
-      icon: "ℹ️",
-      onPress: () => comingSoon("About"),
+      label: "Settings",
+      icon: "\u2699\uFE0F",
+      onPress: () => router.push("/(common)/settings" as any),
     },
   ];
 
@@ -90,17 +99,41 @@ export default function CustomerProfileScreen() {
         </View>
 
         {/* Profile Card */}
-        <View className="items-center mt-4 mb-6">
-          <View className="w-20 h-20 rounded-full bg-primary items-center justify-center mb-3">
-            <Text className="text-white text-2xl font-bold">{initials}</Text>
+        <TouchableOpacity
+          onPress={() => router.push("/(common)/edit-profile" as any)}
+          activeOpacity={0.7}
+          className="mx-5 mt-4 mb-6 bg-gray-50 rounded-2xl p-5"
+        >
+          <View className="flex-row items-center">
+            <View className="w-16 h-16 rounded-full bg-primary items-center justify-center mr-4">
+              <Text className="text-white text-xl font-bold">{initials}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-lg font-bold text-secondary">
+                {displayName}
+              </Text>
+              {displayPhone && (
+                <Text className="text-sm text-gray-500 mt-0.5">
+                  {formatPhone(displayPhone)}
+                </Text>
+              )}
+              {displayEmail && (
+                <Text className="text-sm text-gray-500 mt-0.5">
+                  {displayEmail}
+                </Text>
+              )}
+              {displayCity && (
+                <Text className="text-xs text-gray-400 mt-0.5">
+                  {displayCity}
+                </Text>
+              )}
+            </View>
+            <Text className="text-gray-400 text-lg">{"\u203A"}</Text>
           </View>
-          <Text className="text-xl font-bold text-secondary">
-            {user?.name ?? "Guest User"}
-          </Text>
-          <Text className="text-sm text-gray-500 mt-1">
-            {user?.phone ? formatPhone(user.phone) : "No phone number"}
-          </Text>
-        </View>
+          {isLoading && (
+            <ActivityIndicator size="small" color="#FF6B00" style={{ marginTop: 8 }} />
+          )}
+        </TouchableOpacity>
 
         {/* Menu Items */}
         <View className="mx-5">
@@ -117,7 +150,7 @@ export default function CustomerProfileScreen() {
                 {item.icon}
               </Text>
               <Text className="flex-1 text-base text-secondary">{item.label}</Text>
-              <Text className="text-gray-400 text-lg">›</Text>
+              <Text className="text-gray-400 text-lg">{"\u203A"}</Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -1,11 +1,15 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { BookingStatus, UserRole } from '@prisma/client';
+import { RazorpayService } from '../payments/razorpay.service';
+import { TwilioService } from '../notifications/twilio.service';
+import { BookingStatus, UserRole, PaymentStatus } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingQueryDto } from './dto/booking-query.dto';
 import { CancelBookingDto, RejectBookingDto, VerifyOtpDto } from './dto/update-status.dto';
@@ -13,7 +17,14 @@ import { PaginatedResponseDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly razorpayService: RazorpayService,
+    private readonly twilioService: TwilioService,
+  ) {}
 
   /**
    * Create a new booking
@@ -90,6 +101,42 @@ export class BookingsService {
 
     if (address.userId !== customerId) {
       throw new ForbiddenException('Address does not belong to the customer');
+    }
+
+    // Validate provider serves this area
+    const provider = providerUser.providerProfile;
+    if (
+      provider?.baseLatitude &&
+      provider?.baseLongitude &&
+      address.latitude &&
+      address.longitude
+    ) {
+      const distance = this.calculateDistance(
+        provider.baseLatitude,
+        provider.baseLongitude,
+        address.latitude,
+        address.longitude,
+      );
+      if (distance > provider.serviceRadiusKm) {
+        throw new BadRequestException(
+          `Provider does not serve this area. Provider is ${distance.toFixed(1)}km away, max radius is ${provider.serviceRadiusKm}km`,
+        );
+      }
+    } else {
+      // Fallback: city-based check
+      if (address.city && providerUser.city) {
+        const addressCity = address.city.toLowerCase().trim();
+        const providerCity = providerUser.city.toLowerCase().trim();
+        if (
+          addressCity !== providerCity &&
+          !addressCity.includes(providerCity) &&
+          !providerCity.includes(addressCity)
+        ) {
+          throw new BadRequestException(
+            `Provider is based in ${providerUser.city} and does not serve ${address.city}`,
+          );
+        }
+      }
     }
 
     // Get pricing - use custom pricing if available, otherwise use base service price
@@ -356,7 +403,10 @@ export class BookingsService {
       `Provider rejected: ${dto.reason}`,
     );
 
-    // TODO: Trigger refund process
+    // Trigger full refund since provider rejected
+    this.triggerRefund(bookingId, 100).catch((err) => {
+      this.logger.error(`Failed to process refund for booking ${bookingId}: ${err.message}`);
+    });
 
     return updatedBooking;
   }
@@ -402,6 +452,11 @@ export class BookingsService {
       'OTP verified, booking started',
     );
 
+    // Send emergency contact WhatsApp notification
+    this.sendEmergencyContactNotification(updatedBooking).catch((err) => {
+      this.logger.error(`Failed to send emergency contact notification: ${err.message}`);
+    });
+
     return updatedBooking;
   }
 
@@ -433,6 +488,7 @@ export class BookingsService {
         service: true,
         customer: true,
         address: true,
+        payment: true,
       },
     });
 
@@ -442,6 +498,11 @@ export class BookingsService {
       providerId,
       'Booking completed',
     );
+
+    // Trigger Razorpay Route transfer: 80% to provider
+    this.processProviderPayout(updatedBooking).catch((err) => {
+      this.logger.error(`Failed to process provider payout for booking ${bookingId}: ${err.message}`);
+    });
 
     return updatedBooking;
   }
@@ -495,7 +556,12 @@ export class BookingsService {
       `Cancelled: ${dto.reason} | Refund: ${refundPercentage}%`,
     );
 
-    // TODO: Trigger refund process based on refundPercentage
+    // Trigger refund based on cancellation policy
+    if (refundPercentage > 0) {
+      this.triggerRefund(bookingId, refundPercentage).catch((err) => {
+        this.logger.error(`Failed to process refund for booking ${bookingId}: ${err.message}`);
+      });
+    }
 
     return {
       ...updatedBooking,
@@ -533,6 +599,194 @@ export class BookingsService {
     };
 
     return this.create(customerId, dto);
+  }
+
+  /**
+   * Dev-mode: confirm booking with mock payment (bypasses Razorpay)
+   */
+  async devConfirm(bookingId: string) {
+    const nodeEnv = this.configService.get<string>('app.nodeEnv') || process.env.NODE_ENV;
+    if (nodeEnv !== 'development') {
+      throw new ForbiddenException('Dev confirm is only available in development mode');
+    }
+
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.status !== BookingStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        `Cannot dev-confirm a booking with status: ${booking.status}`,
+      );
+    }
+
+    // Create mock payment
+    await this.prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        amount: booking.amount,
+        currency: 'INR',
+        status: PaymentStatus.CAPTURED,
+        razorpayOrderId: `dev_order_${Date.now()}`,
+        razorpayPaymentId: `dev_pay_${Date.now()}`,
+      },
+    });
+
+    // Move booking to CONFIRMED
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.CONFIRMED },
+      include: {
+        service: true,
+        provider: true,
+        customer: true,
+        address: true,
+        payment: true,
+      },
+    });
+
+    await this.logStatusChange(
+      bookingId,
+      BookingStatus.CONFIRMED,
+      booking.customerId,
+      'Dev-mode payment confirmed',
+    );
+
+    return updatedBooking;
+  }
+
+  /**
+   * Send WhatsApp notification to emergency contact when booking starts
+   */
+  private async sendEmergencyContactNotification(booking: any) {
+    if (!booking.emergencyContactPhone) {
+      return;
+    }
+
+    const customerName = booking.customer?.name || 'A customer';
+    const providerName = booking.provider?.name || 'a service provider';
+    const serviceName = booking.service?.name || 'a home service';
+    const address = booking.address
+      ? `${booking.address.addressLine}, ${booking.address.city}`
+      : 'their address';
+
+    const message =
+      `${customerName} has a home service at ${address} ` +
+      `with provider ${providerName} (Aadhaar verified). ` +
+      `Service: ${serviceName}. ` +
+      `This is an automated safety notification from BharatClap.`;
+
+    const phone = booking.emergencyContactPhone.startsWith('+')
+      ? booking.emergencyContactPhone
+      : `+91${booking.emergencyContactPhone}`;
+
+    await this.twilioService.sendWhatsApp(phone, message);
+
+    this.logger.log(
+      `Emergency contact notification sent for booking ${booking.id}`,
+    );
+  }
+
+  /**
+   * Trigger refund for a cancelled booking
+   */
+  private async triggerRefund(bookingId: string, refundPercentage: number) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { bookingId },
+    });
+
+    if (!payment || payment.status !== PaymentStatus.CAPTURED || !payment.razorpayPaymentId) {
+      this.logger.warn(`Cannot refund booking ${bookingId}: no captured payment`);
+      return;
+    }
+
+    const refundAmount = Math.floor(payment.amount * (refundPercentage / 100));
+
+    try {
+      const refund = await this.razorpayService.initiateRefund(
+        payment.razorpayPaymentId,
+        refundAmount,
+      );
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundId: refund.id,
+          refundAmount,
+          status: PaymentStatus.REFUNDED,
+        },
+      });
+
+      await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: BookingStatus.REFUNDED },
+      });
+
+      this.logger.log(`Refund of ${refundAmount} processed for booking ${bookingId}`);
+    } catch (err: any) {
+      this.logger.error(`Refund failed for booking ${bookingId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Process provider payout after booking completion
+   * Transfers 80% of payment to provider's Razorpay linked account
+   */
+  private async processProviderPayout(booking: any) {
+    if (!booking.payment || booking.payment.status !== PaymentStatus.CAPTURED) {
+      this.logger.warn(`No captured payment for booking ${booking.id}, skipping payout`);
+      return;
+    }
+
+    const payment = booking.payment;
+    const providerPayout = payment.providerPayout || Math.floor(payment.amount * 0.8);
+
+    // Get provider's Razorpay linked account ID
+    const providerProfile = await this.prisma.providerProfile.findUnique({
+      where: { userId: booking.providerId },
+    });
+
+    if (!providerProfile) {
+      this.logger.warn(`No provider profile for ${booking.providerId}, skipping payout`);
+      return;
+    }
+
+    // Attempt Razorpay Route transfer if provider has a linked account
+    if (providerProfile.razorpayAccountId && payment.razorpayPaymentId) {
+      try {
+        await this.razorpayService.createTransfer(
+          payment.razorpayPaymentId,
+          providerPayout,
+          providerProfile.razorpayAccountId,
+        );
+
+        // Update payment payout status
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { payoutStatus: 'COMPLETED' as any },
+        });
+      } catch (err: any) {
+        this.logger.error(`Razorpay transfer failed: ${err.message}`);
+      }
+    }
+
+    // Credit provider wallet balance regardless of Razorpay transfer
+    await this.prisma.providerProfile.update({
+      where: { userId: booking.providerId },
+      data: {
+        walletBalance: { increment: providerPayout },
+        totalEarnings: { increment: providerPayout },
+        totalJobs: { increment: 1 },
+      },
+    });
+
+    this.logger.log(
+      `Provider payout of ${providerPayout} credited for booking ${booking.id}`,
+    );
   }
 
   /**
@@ -583,6 +837,29 @@ export class BookingsService {
   /**
    * Validate state transition
    */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371; // Earth radius in km
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLon = this.toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRadians(deg: number): number {
+    return deg * (Math.PI / 180);
+  }
+
   private validateStateTransition(currentStatus: BookingStatus, newStatus: BookingStatus): void {
     const validTransitions: Record<BookingStatus, BookingStatus[]> = {
       [BookingStatus.PENDING_PAYMENT]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],

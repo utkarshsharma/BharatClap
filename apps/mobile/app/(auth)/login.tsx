@@ -1,5 +1,5 @@
 import "../../global.css";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
+import { auth } from "@/services/firebase";
+import FirebaseRecaptcha from "@/components/FirebaseRecaptcha";
 import { CONFIG } from "@/constants/config";
 
 export default function LoginScreen() {
@@ -19,11 +22,12 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showRecaptcha, setShowRecaptcha] = useState(false);
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
 
   const isValidPhone = phone.length === 10 && /^[6-9]\d{9}$/.test(phone);
 
   const handlePhoneChange = (text: string) => {
-    // Only allow digits, max 10 characters
     const cleaned = text.replace(/[^0-9]/g, "").slice(0, 10);
     setPhone(cleaned);
     if (error) setError("");
@@ -39,17 +43,34 @@ export default function LoginScreen() {
     setError("");
 
     try {
-      // Simulate OTP sending delay (Firebase not configured yet)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const fullPhone = `${CONFIG.PHONE_PREFIX}${phone}`;
 
-      // Navigate to OTP screen with the phone number
+      // Try Firebase phone auth
+      const confirmation = await signInWithPhoneNumber(auth, fullPhone);
+      confirmationResultRef.current = confirmation;
+
       router.push({
         pathname: "/(auth)/otp",
-        params: { phone: `${CONFIG.PHONE_PREFIX}${phone}` },
+        params: {
+          phone: fullPhone,
+          verificationId: confirmation.verificationId,
+        },
       });
-    } catch (err) {
-      setError("Failed to send OTP. Please try again.");
-      Alert.alert("Error", "Failed to send OTP. Please try again.");
+    } catch (firebaseErr: any) {
+      // If Firebase fails (e.g. no reCAPTCHA in Expo Go), fall back to dev mode
+      if (__DEV__) {
+        console.warn("Firebase auth failed, using dev mode fallback:", firebaseErr?.message);
+        router.push({
+          pathname: "/(auth)/otp",
+          params: {
+            phone: `${CONFIG.PHONE_PREFIX}${phone}`,
+            devMode: "true",
+          },
+        });
+      } else {
+        setError("Failed to send OTP. Please try again.");
+        Alert.alert("Error", firebaseErr?.message || "Failed to send OTP.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -165,6 +186,22 @@ export default function LoginScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* reCAPTCHA WebView (for Firebase phone auth) */}
+      <FirebaseRecaptcha
+        visible={showRecaptcha}
+        onVerify={() => setShowRecaptcha(false)}
+        onError={(msg) => {
+          setShowRecaptcha(false);
+          setError(msg);
+        }}
+        onClose={() => setShowRecaptcha(false)}
+        firebaseConfig={{
+          apiKey: '***REDACTED_FIREBASE_KEY***',
+          authDomain: 'bharatclap.firebaseapp.com',
+          projectId: 'bharatclap',
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -1,140 +1,95 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import {
   TrendingUp,
   Users,
   IndianRupee,
   ShieldCheck,
+  CalendarDays,
+  UserCheck,
 } from 'lucide-react'
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
+import api from '@/lib/api'
 
-// Mock data
-const stats = [
-  {
-    title: 'Total Bookings',
-    value: '12,453',
-    change: '+12.5%',
-    icon: TrendingUp,
-  },
-  {
-    title: 'Total Revenue',
-    value: formatCurrency(4567800),
-    change: '+18.2%',
-    icon: IndianRupee,
-  },
-  {
-    title: 'Active Providers',
-    value: '1,234',
-    change: '+5.3%',
-    icon: Users,
-  },
-  {
-    title: 'Pending KYC',
-    value: '45',
-    change: '-8.1%',
-    icon: ShieldCheck,
-  },
-]
+interface DashboardStats {
+  totalBookings: number
+  totalRevenue: number
+  activeProviders: number
+  activeCustomers: number
+  pendingKycCount: number
+  bookingsThisWeek: number
+  revenueThisWeek: number
+}
 
-const bookingsData = [
-  { month: 'Jan', bookings: 450 },
-  { month: 'Feb', bookings: 520 },
-  { month: 'Mar', bookings: 680 },
-  { month: 'Apr', bookings: 740 },
-  { month: 'May', bookings: 890 },
-  { month: 'Jun', bookings: 1050 },
-]
-
-const revenueData = [
-  { month: 'Jan', revenue: 145000 },
-  { month: 'Feb', revenue: 178000 },
-  { month: 'Mar', revenue: 235000 },
-  { month: 'Apr', revenue: 298000 },
-  { month: 'May', revenue: 367000 },
-  { month: 'Jun', revenue: 425000 },
-]
-
-const recentBookings = [
-  {
-    id: 'BK-1001',
-    customer: 'Rahul Sharma',
-    provider: 'Amit Kumar',
-    service: 'Plumbing',
-    status: 'completed',
-    amount: 1200,
-    date: '2026-02-10T10:30:00',
-  },
-  {
-    id: 'BK-1002',
-    customer: 'Priya Patel',
-    provider: 'Suresh Reddy',
-    service: 'Electrical',
-    status: 'ongoing',
-    amount: 2500,
-    date: '2026-02-10T09:15:00',
-  },
-  {
-    id: 'BK-1003',
-    customer: 'Arjun Mehta',
-    provider: 'Ravi Singh',
-    service: 'Carpentry',
-    status: 'pending',
-    amount: 3500,
-    date: '2026-02-10T08:00:00',
-  },
-  {
-    id: 'BK-1004',
-    customer: 'Sneha Gupta',
-    provider: 'Vijay Rao',
-    service: 'Cleaning',
-    status: 'completed',
-    amount: 800,
-    date: '2026-02-09T16:45:00',
-  },
-  {
-    id: 'BK-1005',
-    customer: 'Karan Malhotra',
-    provider: 'Deepak Joshi',
-    service: 'AC Service',
-    status: 'cancelled',
-    amount: 1500,
-    date: '2026-02-09T14:20:00',
-  },
-]
-
-const getStatusBadge = (status: string) => {
-  const variants: Record<string, 'success' | 'warning' | 'info' | 'destructive'> = {
-    completed: 'success',
-    ongoing: 'info',
-    pending: 'warning',
-    cancelled: 'destructive',
-  }
-  return <Badge variant={variants[status]}>{status.toUpperCase()}</Badge>
+const fetchDashboardStats = async (): Promise<DashboardStats> => {
+  const { data } = await api.get('/admin/dashboard')
+  return data
 }
 
 export default function AdminDashboard() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: fetchDashboardStats,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="p-6 max-w-md">
+          <h2 className="text-xl font-semibold text-destructive mb-2">
+            Error Loading Dashboard
+          </h2>
+          <p className="text-muted-foreground">
+            {error instanceof Error ? error.message : 'Failed to fetch data'}
+          </p>
+        </Card>
+      </div>
+    )
+  }
+
+  const stats = [
+    {
+      title: 'Total Bookings',
+      value: data?.totalBookings ?? 'N/A',
+      icon: TrendingUp,
+    },
+    {
+      title: 'Total Revenue',
+      value: typeof data?.totalRevenue === 'number' ? formatCurrency(data.totalRevenue) : 'N/A',
+      icon: IndianRupee,
+    },
+    {
+      title: 'Active Providers',
+      value: data?.activeProviders ?? 'N/A',
+      icon: Users,
+    },
+    {
+      title: 'Pending KYC',
+      value: data?.pendingKycCount ?? 'N/A',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Active Customers',
+      value: data?.activeCustomers ?? 'N/A',
+      icon: UserCheck,
+    },
+    {
+      title: 'Bookings This Week',
+      value: data?.bookingsThisWeek ?? 'N/A',
+      icon: CalendarDays,
+    },
+  ]
+
   return (
     <div className="space-y-8">
       <div>
@@ -143,7 +98,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -152,95 +107,51 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">
-                <span className={stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}>
-                  {stat.change}
-                </span>{' '}
-                from last month
-              </p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Charts */}
+      {/* Weekly Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Bookings Over Time</CardTitle>
+            <CardTitle>This Week Summary</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={bookingsData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="bookings"
-                  stroke="#FF6B00"
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Bookings This Week</span>
+              <span className="text-2xl font-bold">{data?.bookingsThisWeek ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Revenue This Week</span>
+              <span className="text-2xl font-bold">
+                {typeof data?.revenueThisWeek === 'number' ? formatCurrency(data.revenueThisWeek) : '₹0'}
+              </span>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Revenue Over Time</CardTitle>
+            <CardTitle>Platform Overview</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                <Legend />
-                <Bar dataKey="revenue" fill="#FF6B00" />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Active Providers</span>
+              <span className="text-2xl font-bold">{data?.activeProviders ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Active Customers</span>
+              <span className="text-2xl font-bold">{data?.activeCustomers ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Pending KYC Approvals</span>
+              <span className="text-2xl font-bold text-orange-600">{data?.pendingKycCount ?? 0}</span>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Recent Bookings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Bookings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Booking ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentBookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell className="font-medium">{booking.id}</TableCell>
-                  <TableCell>{booking.customer}</TableCell>
-                  <TableCell>{booking.provider}</TableCell>
-                  <TableCell>{booking.service}</TableCell>
-                  <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                  <TableCell>{formatCurrency(booking.amount)}</TableCell>
-                  <TableCell>{formatDateTime(booking.date)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   )
 }

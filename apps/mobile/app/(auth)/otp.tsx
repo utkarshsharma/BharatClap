@@ -12,15 +12,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { PhoneAuthProvider, signInWithCredential } from "firebase/auth";
+import { auth } from "@/services/firebase";
 import { CONFIG } from "@/constants/config";
 import { useAuthStore } from "@/store/authStore";
 import { authService } from "@/services/auth";
+import api from "@/services/api";
 
 const RESEND_TIMER_SECONDS = 30;
 
 export default function OtpScreen() {
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, verificationId, devMode } = useLocalSearchParams<{
+    phone: string;
+    verificationId?: string;
+    devMode?: string;
+  }>();
   const { setUser, setTokens, setRole } = useAuthStore();
 
   const [otp, setOtp] = useState<string[]>(
@@ -33,7 +40,6 @@ export default function OtpScreen() {
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  // Auto-focus first input on mount
   useEffect(() => {
     const timeout = setTimeout(() => {
       inputRefs.current[0]?.focus();
@@ -41,7 +47,6 @@ export default function OtpScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // Resend timer countdown
   useEffect(() => {
     if (resendTimer <= 0) {
       setCanResend(true);
@@ -60,7 +65,6 @@ export default function OtpScreen() {
 
     const digit = text.replace(/[^0-9]/g, "");
 
-    // Handle paste of full OTP
     if (digit.length > 1) {
       const digits = digit.slice(0, CONFIG.OTP_LENGTH).split("");
       const newOtp = [...otp];
@@ -70,8 +74,6 @@ export default function OtpScreen() {
         }
       });
       setOtp(newOtp);
-
-      // Focus the next empty input or the last one
       const nextIndex = Math.min(index + digits.length, CONFIG.OTP_LENGTH - 1);
       inputRefs.current[nextIndex]?.focus();
       return;
@@ -81,14 +83,12 @@ export default function OtpScreen() {
     newOtp[index] = digit;
     setOtp(newOtp);
 
-    // Auto-advance to next input
     if (digit && index < CONFIG.OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyPress = (key: string, index: number) => {
-    // Handle backspace: clear current or go to previous
     if (key === "Backspace") {
       if (otp[index] === "" && index > 0) {
         const newOtp = [...otp];
@@ -116,51 +116,68 @@ export default function OtpScreen() {
     setError("");
 
     try {
-      // Simulate Firebase verification and get a mock token
-      // In production, this would verify with Firebase Auth and get an ID token
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const mockFirebaseIdToken = `mock-firebase-token-${phone}-${otpString}`;
+      let firebaseIdToken: string;
 
-      // Call auth service login
-      let response;
-      try {
-        response = await authService.login(mockFirebaseIdToken);
-      } catch {
-        // If API is not available, use mock data for development
-        response = {
-          accessToken: `mock-access-token-${Date.now()}`,
-          refreshToken: `mock-refresh-token-${Date.now()}`,
-          user: {
-            id: `user-${Date.now()}`,
-            phone: phone || "",
-          },
-          role: undefined as 'customer' | 'provider' | undefined,
-        };
+      if (devMode === "true") {
+        // Dev mode: use backend dev login directly
+        const res = await api.post("/auth/login/dev", { phone });
+        const { user, accessToken, refreshToken } = res.data;
+
+        setTokens(accessToken, refreshToken);
+        setUser({ id: user.id, phone: user.phone, name: user.name });
+
+        const userRole = user.role?.toLowerCase();
+        if (userRole === "customer" || userRole === "provider") {
+          setRole(userRole);
+          if (userRole === "customer") {
+            router.replace("/(customer)/(tabs)");
+          } else {
+            router.replace("/(provider)/(tabs)/dashboard");
+          }
+        } else {
+          router.replace("/(auth)/role-select");
+        }
+        return;
       }
 
-      // Store tokens and user data
+      // Firebase flow: verify OTP and get ID token
+      if (!verificationId) {
+        throw new Error("Missing verification ID");
+      }
+
+      const credential = PhoneAuthProvider.credential(verificationId, otpString);
+      const userCredential = await signInWithCredential(auth, credential);
+      firebaseIdToken = await userCredential.user.getIdToken();
+
+      // Send Firebase ID token to backend
+      const response = await authService.login(firebaseIdToken);
+
       setTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
 
-      // Navigate based on whether user has a role
-      if (response.role) {
-        setRole(response.role);
-        if (response.role === "customer") {
-          router.replace("/(customer)/(tabs)");
+      if (response.user && (response.user as any).role) {
+        const role = (response.user as any).role.toLowerCase();
+        if (role === "customer" || role === "provider") {
+          setRole(role);
+          if (role === "customer") {
+            router.replace("/(customer)/(tabs)");
+          } else {
+            router.replace("/(provider)/(tabs)/dashboard");
+          }
         } else {
-          router.replace("/(provider)/(tabs)/dashboard");
+          router.replace("/(auth)/role-select");
         }
       } else {
-        // No role yet, go to role selection
         router.replace("/(auth)/role-select");
       }
-    } catch (err) {
-      setError("Verification failed. Please try again.");
-      Alert.alert("Error", "Verification failed. Please try again.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Verification failed";
+      setError(msg);
+      Alert.alert("Error", msg);
     } finally {
       setIsLoading(false);
     }
-  }, [isOtpComplete, otpString, phone, setTokens, setUser, setRole, router]);
+  }, [isOtpComplete, otpString, phone, verificationId, devMode, setTokens, setUser, setRole, router]);
 
   const handleResendOtp = async () => {
     if (!canResend) return;
@@ -169,9 +186,6 @@ export default function OtpScreen() {
     setResendTimer(RESEND_TIMER_SECONDS);
     setOtp(Array(CONFIG.OTP_LENGTH).fill(""));
     setError("");
-
-    // Simulate resend
-    await new Promise((resolve) => setTimeout(resolve, 500));
     inputRefs.current[0]?.focus();
   };
 
@@ -198,7 +212,9 @@ export default function OtpScreen() {
               Verify your number
             </Text>
             <Text className="text-base text-gray-500 mt-1">
-              Enter the {CONFIG.OTP_LENGTH}-digit code sent to
+              {devMode === "true"
+                ? "Enter any 6 digits to continue (dev mode)"
+                : `Enter the ${CONFIG.OTP_LENGTH}-digit code sent to`}
             </Text>
             <View className="flex-row items-center mt-1">
               <Text className="text-base font-semibold text-secondary">

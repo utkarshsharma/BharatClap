@@ -9,16 +9,17 @@ const Razorpay = require('razorpay');
 export class RazorpayService {
   private readonly logger = new Logger(RazorpayService.name);
   private razorpay: any;
+  private keySecret: string;
   private webhookSecret: string;
 
   constructor(private configService: ConfigService) {
     const keyId = this.configService.get<string>('app.razorpay.keyId');
-    const keySecret = this.configService.get<string>('app.razorpay.keySecret');
+    this.keySecret = this.configService.get<string>('app.razorpay.keySecret') || '';
     this.webhookSecret = this.configService.get<string>('app.razorpay.webhookSecret', '');
 
     this.razorpay = new Razorpay({
       key_id: keyId,
-      key_secret: keySecret,
+      key_secret: this.keySecret,
     });
   }
 
@@ -42,7 +43,7 @@ export class RazorpayService {
     try {
       const text = `${orderId}|${paymentId}`;
       const generatedSignature = crypto
-        .createHmac('sha256', this.webhookSecret)
+        .createHmac('sha256', this.keySecret)
         .update(text)
         .digest('hex');
 
@@ -67,23 +68,42 @@ export class RazorpayService {
     }
   }
 
-  async createTransfer(paymentId: string, amount: number, providerId: string) {
-    // Placeholder for Razorpay Route transfer to provider
-    // This would require the provider to have a linked account with Razorpay
-    this.logger.log(
-      `Transfer placeholder - PaymentId: ${paymentId}, Amount: ${amount}, ProviderId: ${providerId}`,
-    );
-    // Future implementation:
-    // const transfer = await this.razorpay.payments.transfer(paymentId, {
-    //   transfers: [
-    //     {
-    //       account: providerAccountId,
-    //       amount: amount,
-    //       currency: 'INR',
-    //     },
-    //   ],
-    // });
-    // return transfer;
-    return null;
+  async createTransfer(paymentId: string, amount: number, providerLinkedAccountId: string) {
+    try {
+      const transfer = await this.razorpay.payments.transfer(paymentId, {
+        transfers: [
+          {
+            account: providerLinkedAccountId,
+            amount: amount, // 80% in paise
+            currency: 'INR',
+            notes: {
+              payout_type: 'provider_earning',
+            },
+          },
+        ],
+      });
+
+      this.logger.log(
+        `Created transfer for payment ${paymentId}: ${JSON.stringify(transfer)}`,
+      );
+      return transfer;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to create transfer for payment ${paymentId}: ${error.message}`,
+      );
+      // In dev/test mode, return a mock transfer
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.warn('Returning mock transfer in development mode');
+        return {
+          id: `mock_transfer_${Date.now()}`,
+          source: paymentId,
+          recipient: providerLinkedAccountId,
+          amount,
+          currency: 'INR',
+          status: 'processed',
+        };
+      }
+      throw error;
+    }
   }
 }

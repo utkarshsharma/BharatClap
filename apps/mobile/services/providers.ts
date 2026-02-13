@@ -44,6 +44,15 @@ export interface UpdateProfileData {
   city?: string;
 }
 
+export interface PortfolioItem {
+  id: string;
+  providerId: string;
+  mediaUrl: string;
+  mediaType: string;
+  caption?: string;
+  createdAt: string;
+}
+
 export const providerService = {
   getProviders: async (params?: GetProvidersParams): Promise<{ providers: Provider[]; total: number }> => {
     const response = await api.get('/providers', { params });
@@ -64,37 +73,47 @@ export const providerService = {
   },
 
   getFavorites: async (): Promise<Provider[]> => {
-    const response = await api.get('/providers/favorites');
+    const response = await api.get('/favorites');
     return response.data;
   },
 
   // Provider self-management
   getOwnProfile: async (): Promise<Provider> => {
-    const response = await api.get('/providers/me');
+    const response = await api.get('/provider/profile');
     return response.data;
   },
 
   updateProfile: async (data: UpdateProfileData): Promise<Provider> => {
-    const response = await api.patch('/providers/me', data);
+    const response = await api.patch('/provider/profile', data);
     return response.data;
   },
 
   getOwnServices: async (): Promise<ProviderService[]> => {
-    const response = await api.get('/providers/me/services');
+    const response = await api.get('/provider/services');
     return response.data;
   },
 
   addService: async (serviceId: string, customPrice?: number): Promise<ProviderService> => {
-    const response = await api.post('/providers/me/services', { serviceId, customPrice });
+    const response = await api.post('/provider/services', { serviceId, customPrice });
     return response.data;
   },
 
   removeService: async (serviceId: string): Promise<void> => {
-    await api.delete(`/providers/me/services/${serviceId}`);
+    await api.delete(`/provider/services/${serviceId}`);
   },
 
   updateServicePrice: async (serviceId: string, customPrice: number): Promise<ProviderService> => {
-    const response = await api.patch(`/providers/me/services/${serviceId}`, { customPrice });
+    const response = await api.patch(`/provider/services/${serviceId}`, { customPrice });
     return response.data;
+  },
+
+  // Portfolio management
+  addPortfolioItem: async (mediaUrl: string, mediaType: string, caption?: string): Promise<PortfolioItem> => {
+    const response = await api.post('/provider/portfolio', { mediaUrl, mediaType, caption });
+    return response.data;
+  },
+
+  removePortfolioItem: async (id: string): Promise<void> => {
+    await api.delete(`/provider/portfolio/${id}`);
   },
 };

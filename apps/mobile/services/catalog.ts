@@ -22,6 +22,7 @@ export interface Service {
 
 export interface GetServicesParams {
   categorySlug?: string;
+  city?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -29,22 +30,22 @@ export interface GetServicesParams {
 
 export const catalogService = {
   getCategories: async (): Promise<Category[]> => {
-    const response = await api.get('/catalog/categories');
-    return response.data;
+    const response = await api.get('/categories');
+    return response.data.data ?? response.data;
   },
 
   getCategoryBySlug: async (slug: string): Promise<Category> => {
-    const response = await api.get(`/catalog/categories/${slug}`);
-    return response.data;
+    const response = await api.get(`/categories/${slug}`);
+    return response.data.data ?? response.data;
   },
 
   getServices: async (params?: GetServicesParams): Promise<{ services: Service[]; total: number }> => {
-    const response = await api.get('/catalog/services', { params });
-    return response.data;
+    const response = await api.get('/services', { params });
+    return { services: response.data.data ?? response.data, total: response.data.meta?.total ?? 0 };
   },
 
   getServiceBySlug: async (slug: string): Promise<Service> => {
-    const response = await api.get(`/catalog/services/${slug}`);
-    return response.data;
+    const response = await api.get(`/services/${slug}`);
+    return response.data.data ?? response.data;
   },
 };

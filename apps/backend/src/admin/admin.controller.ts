@@ -67,6 +67,15 @@ export class AdminController {
     return this.adminService.getProviders(query);
   }
 
+  @Get('providers/:id')
+  @ApiOperation({ summary: 'Get single provider detail' })
+  @ApiParam({ name: 'id', description: 'Provider (user) ID' })
+  @ApiResponse({ status: 200, description: 'Provider detail retrieved' })
+  @ApiResponse({ status: 404, description: 'Provider not found' })
+  async getProviderDetail(@Param('id') providerId: string) {
+    return this.adminService.getProviderDetail(providerId);
+  }
+
   @Patch('providers/:id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve a provider (verify KYC)' })

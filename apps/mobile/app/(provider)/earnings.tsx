@@ -1,86 +1,21 @@
 import "../../global.css";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  FlatList,
+  RefreshControl,
+  ActivityIndicator,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { bookingService, type Booking } from "@/services/bookings";
 import { formatCurrency } from "@/utils/format";
 
 type Period = "week" | "month" | "all";
-
-interface EarningItem {
-  id: string;
-  date: string;
-  serviceName: string;
-  amount: number; // in paise
-  status: "paid" | "pending";
-}
-
-// Mock earnings data
-const MOCK_EARNINGS: EarningItem[] = [
-  {
-    id: "1",
-    date: "2026-02-10",
-    serviceName: "AC Repair",
-    amount: 150000,
-    status: "pending",
-  },
-  {
-    id: "2",
-    date: "2026-02-09",
-    serviceName: "Plumbing - Tap Fix",
-    amount: 80000,
-    status: "paid",
-  },
-  {
-    id: "3",
-    date: "2026-02-08",
-    serviceName: "Electrical Wiring",
-    amount: 200000,
-    status: "paid",
-  },
-  {
-    id: "4",
-    date: "2026-02-07",
-    serviceName: "AC Service",
-    amount: 120000,
-    status: "paid",
-  },
-  {
-    id: "5",
-    date: "2026-02-06",
-    serviceName: "Water Heater Install",
-    amount: 250000,
-    status: "paid",
-  },
-  {
-    id: "6",
-    date: "2026-02-04",
-    serviceName: "Plumbing - Pipe Leak",
-    amount: 100000,
-    status: "pending",
-  },
-  {
-    id: "7",
-    date: "2026-01-30",
-    serviceName: "Fan Installation",
-    amount: 60000,
-    status: "paid",
-  },
-  {
-    id: "8",
-    date: "2026-01-25",
-    serviceName: "AC Deep Clean",
-    amount: 180000,
-    status: "paid",
-  },
-];
 
 const formatDateDisplay = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -92,25 +27,67 @@ const formatDateDisplay = (dateStr: string) => {
 
 export default function ProviderEarningsScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [period, setPeriod] = useState<Period>("week");
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch completed bookings (paid earnings)
+  const { data: earningsData, isLoading: earningsLoading, refetch: refetchEarnings } = useQuery({
+    queryKey: ['provider-earnings'],
+    queryFn: () => bookingService.getBookings({ role: 'provider', status: 'COMPLETED' }),
+  });
+
+  // Fetch confirmed bookings (pending earnings)
+  const { data: pendingData, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
+    queryKey: ['provider-pending-earnings'],
+    queryFn: () => bookingService.getBookings({ role: 'provider', status: 'CONFIRMED' }),
+  });
+
+  const isLoading = earningsLoading || pendingLoading;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchEarnings(), refetchPending()]);
+    setRefreshing(false);
+  }, [refetchEarnings, refetchPending]);
+
+  // Map completed bookings to paid earnings
+  const allEarnings = (earningsData?.bookings ?? []).map((b: Booking) => ({
+    id: b.id,
+    date: b.scheduledDate,
+    serviceName: (b as any).service?.name ?? 'Service',
+    amount: b.finalPrice ?? 0,
+    status: 'paid' as const,
+  }));
+
+  // Map confirmed bookings to pending earnings
+  const pendingEarnings = (pendingData?.bookings ?? []).map((b: Booking) => ({
+    id: b.id,
+    date: b.scheduledDate,
+    serviceName: (b as any).service?.name ?? 'Service',
+    amount: b.finalPrice ?? 0,
+    status: 'pending' as const,
+  }));
+
+  const ALL_EARNINGS = [...allEarnings, ...pendingEarnings];
 
   const now = new Date();
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const filteredEarnings = MOCK_EARNINGS.filter((e) => {
+  const filteredEarnings = ALL_EARNINGS.filter((e) => {
     if (period === "all") return true;
     const d = new Date(e.date);
     if (period === "week") return d >= oneWeekAgo;
     return d >= oneMonthAgo;
   });
 
-  const totalEarned = MOCK_EARNINGS.filter((e) => e.status === "paid").reduce(
+  const totalEarned = ALL_EARNINGS.filter((e) => e.status === "paid").reduce(
     (sum, e) => sum + e.amount,
     0
   );
 
-  const pendingBalance = MOCK_EARNINGS.filter((e) => e.status === "pending").reduce(
+  const pendingBalance = ALL_EARNINGS.filter((e) => e.status === "pending").reduce(
     (sum, e) => sum + e.amount,
     0
   );
@@ -119,7 +96,17 @@ export default function ProviderEarningsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF6B00"
+          />
+        }
+      >
         {/* Header */}
         <View className="flex-row items-center px-5 pt-4 pb-2">
           <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1">
@@ -127,6 +114,10 @@ export default function ProviderEarningsScreen() {
           </TouchableOpacity>
           <Text className="text-xl font-bold text-[#1A1A2E]">Earnings</Text>
         </View>
+
+        {isLoading && (
+          <ActivityIndicator size="large" color="#FF6B00" className="py-8" />
+        )}
 
         {/* Summary Cards */}
         <View className="px-5 mt-4">

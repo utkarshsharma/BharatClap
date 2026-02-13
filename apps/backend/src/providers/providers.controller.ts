@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProvidersService } from './providers.service';
+import { SetuKycService } from './setu-kyc.service';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { AddProviderServiceDto, UpdateProviderServiceDto } from './dto/provider-service.dto';
 import { SetAvailabilityDto } from './dto/availability.dto';
@@ -25,7 +26,10 @@ import { UserRole } from '@prisma/client';
 @ApiTags('Providers')
 @Controller()
 export class ProvidersController {
-  constructor(private readonly providersService: ProvidersService) {}
+  constructor(
+    private readonly providersService: ProvidersService,
+    private readonly setuKycService: SetuKycService,
+  ) {}
 
   // Provider self-management routes
 
@@ -52,6 +56,17 @@ export class ProvidersController {
     @Body() dto: UpdateProviderDto,
   ) {
     return this.providersService.updateProfile(userId, dto);
+  }
+
+  @Get('provider/services')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.PROVIDER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List own service offerings' })
+  @ApiResponse({ status: 200, description: 'Provider services retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Provider profile not found' })
+  async getOwnServices(@CurrentUser('id') userId: string) {
+    return this.providersService.getOwnServices(userId);
   }
 
   @Post('provider/services')
@@ -207,6 +222,36 @@ export class ProvidersController {
   @ApiResponse({ status: 404, description: 'Provider profile not found' })
   async requestWithdrawal(@CurrentUser('id') userId: string) {
     return this.providersService.requestWithdrawal(userId);
+  }
+
+  // KYC routes
+
+  @Post('provider/kyc/initiate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.PROVIDER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Initiate Aadhaar e-KYC verification' })
+  @ApiResponse({ status: 200, description: 'KYC verification initiated' })
+  @ApiResponse({ status: 400, description: 'KYC already verified or in progress' })
+  async initiateKyc(@CurrentUser('id') userId: string) {
+    return this.setuKycService.initiateKyc(userId);
+  }
+
+  @Get('provider/kyc/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.PROVIDER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check KYC verification status' })
+  @ApiResponse({ status: 200, description: 'KYC status retrieved' })
+  async getKycStatus(@CurrentUser('id') userId: string) {
+    return this.setuKycService.getKycStatus(userId);
+  }
+
+  @Post('provider/kyc/callback')
+  @Public()
+  @ApiOperation({ summary: 'Handle Setu KYC webhook callback' })
+  async handleKycCallback(@Body() body: any) {
+    return this.setuKycService.handleSetuCallback(body);
   }
 
   // Customer-facing routes

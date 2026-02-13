@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
 
 export default function CustomerTabsLayout() {
@@ -41,6 +41,6 @@ export default function CustomerTabsLayout() {
   );
 }
 
-function TabBarIcon({ name, color }: { name: string; color: string }) {
-  return <Text style={{ color, fontSize: 24 }}>•</Text>;
+function TabBarIcon({ name, color }: { name: keyof typeof Ionicons.glyphMap; color: string }) {
+  return <Ionicons name={name} size={24} color={color} />;
 }

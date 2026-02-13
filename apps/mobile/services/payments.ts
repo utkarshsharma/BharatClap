@@ -11,19 +11,39 @@ export interface Payment {
   updatedAt: string;
 }
 
+export interface PaymentOrder {
+  orderId: string;
+  amount: number;
+  currency: string;
+}
+
+export interface PaymentVerifyData {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
 export const paymentService = {
   getPayment: async (bookingId: string): Promise<Payment> => {
-    const response = await api.get(`/payments/booking/${bookingId}`);
+    const response = await api.get(`/payments/${bookingId}`);
     return response.data;
   },
 
-  createPaymentIntent: async (bookingId: string): Promise<{ clientSecret: string }> => {
-    const response = await api.post(`/payments/booking/${bookingId}/intent`);
+  createPaymentOrder: async (bookingId: string): Promise<PaymentOrder> => {
+    const response = await api.post(`/payments/${bookingId}/order`);
     return response.data;
   },
 
-  confirmPayment: async (bookingId: string, paymentIntentId: string): Promise<Payment> => {
-    const response = await api.post(`/payments/booking/${bookingId}/confirm`, { paymentIntentId });
+  verifyPayment: async (
+    bookingId: string,
+    data: PaymentVerifyData,
+  ): Promise<{ verified: boolean; status: string }> => {
+    const response = await api.post(`/payments/${bookingId}/verify`, data);
+    return response.data;
+  },
+
+  getPaymentConfig: async (): Promise<{ keyId: string }> => {
+    const response = await api.get('/payments/config');
     return response.data;
   },
 };

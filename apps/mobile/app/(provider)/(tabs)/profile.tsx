@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { providerService } from "@/services/providers";
 import { useAuthStore } from "@/store/authStore";
-import { formatRating, formatDate } from "@/utils/format";
+import { formatRating } from "@/utils/format";
 
 interface MenuItem {
   label: string;
@@ -47,6 +47,10 @@ export default function ProviderProfileScreen() {
 
   const menuItems: MenuItem[] = [
     {
+      label: "Edit Profile",
+      onPress: () => router.push("/(common)/edit-profile" as any),
+    },
+    {
       label: "My Services",
       onPress: () => router.push("/(provider)/onboarding/services" as any),
     },
@@ -56,7 +60,7 @@ export default function ProviderProfileScreen() {
     },
     {
       label: "Portfolio",
-      onPress: () => Alert.alert("Coming Soon", "Portfolio feature is coming soon!"),
+      onPress: () => router.push("/(provider)/onboarding/portfolio" as any),
     },
     {
       label: "Bank & Payments",
@@ -68,12 +72,11 @@ export default function ProviderProfileScreen() {
     },
     {
       label: "KYC Verification",
-      onPress: () =>
-        Alert.alert("Coming Soon", "KYC Verification feature is coming soon!"),
+      onPress: () => router.push("/(provider)/kyc" as any),
     },
     {
       label: "Settings",
-      onPress: () => Alert.alert("Coming Soon", "Settings feature is coming soon!"),
+      onPress: () => router.push("/(common)/settings" as any),
     },
     {
       label: "Logout",
@@ -108,35 +111,48 @@ export default function ProviderProfileScreen() {
           <Text className="text-2xl font-bold text-[#1A1A2E]">Profile</Text>
         </View>
 
-        {/* Profile Header */}
-        <View className="items-center px-5 pt-4 pb-6">
-          {/* Avatar */}
-          <View className="w-20 h-20 rounded-full bg-[#FF6B00] items-center justify-center mb-3">
-            <Text className="text-2xl font-bold text-white">
-              {getInitials(profile?.name ?? user?.name)}
-            </Text>
-          </View>
-          <View className="flex-row items-center mb-1">
-            <Text className="text-xl font-bold text-[#1A1A2E]">
-              {profile?.name ?? user?.name ?? "Provider"}
-            </Text>
-            {profile?.isVerified && (
-              <View className="ml-2 bg-[#E8F5E9] px-2 py-0.5 rounded-full">
-                <Text className="text-xs text-[#4CAF50] font-semibold">Verified</Text>
+        {/* Profile Header - Tappable to edit */}
+        <TouchableOpacity
+          onPress={() => router.push("/(common)/edit-profile" as any)}
+          activeOpacity={0.7}
+          className="mx-5 mt-2 bg-gray-50 rounded-2xl p-5 mb-4"
+        >
+          <View className="flex-row items-center">
+            <View className="w-16 h-16 rounded-full bg-[#FF6B00] items-center justify-center mr-4">
+              <Text className="text-xl font-bold text-white">
+                {getInitials(profile?.name ?? user?.name)}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center mb-0.5">
+                <Text className="text-lg font-bold text-[#1A1A2E]">
+                  {profile?.name ?? user?.name ?? "Provider"}
+                </Text>
+                {profile?.isVerified && (
+                  <View className="ml-2 bg-[#E8F5E9] px-2 py-0.5 rounded-full">
+                    <Text className="text-xs text-[#4CAF50] font-semibold">Verified</Text>
+                  </View>
+                )}
               </View>
-            )}
+              <Text className="text-sm text-[#757575]">
+                {profile?.phone ?? user?.phone ?? ""}
+              </Text>
+              {profile?.city && (
+                <Text className="text-xs text-gray-400 mt-0.5">
+                  {profile.city}
+                </Text>
+              )}
+            </View>
+            <Text className="text-gray-400 text-lg">{"\u203A"}</Text>
           </View>
-          <Text className="text-sm text-[#757575]">
-            {profile?.phone ?? user?.phone ?? ""}
-          </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Rating & Stats */}
         <View className="mx-5 bg-[#FFF3E0] rounded-2xl p-4 mb-4">
           <View className="flex-row items-center justify-around">
             <View className="items-center">
               <Text className="text-2xl font-bold text-[#FF6B00]">
-                {profile?.rating ? formatRating(profile.rating) : "0.0"} ★
+                {profile?.rating ? formatRating(profile.rating) : "0.0"} {"\u2605"}
               </Text>
               <Text className="text-xs text-[#757575] mt-1">Rating</Text>
             </View>
@@ -193,7 +209,7 @@ export default function ProviderProfileScreen() {
               >
                 {item.label}
               </Text>
-              <Text className="text-[#757575] text-lg">{">"}</Text>
+              <Text className="text-[#757575] text-lg">{"\u203A"}</Text>
             </TouchableOpacity>
           ))}
         </View>

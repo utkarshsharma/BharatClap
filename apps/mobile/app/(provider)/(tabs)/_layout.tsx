@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
-import { Text } from "react-native";
 
 export default function ProviderTabsLayout() {
   return (
@@ -20,7 +20,7 @@ export default function ProviderTabsLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color }) => <TabBarIcon name="dashboard" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="grid" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -41,6 +41,6 @@ export default function ProviderTabsLayout() {
   );
 }
 
-function TabBarIcon({ name, color }: { name: string; color: string }) {
-  return <Text style={{ color, fontSize: 24 }}>•</Text>;
+function TabBarIcon({ name, color }: { name: keyof typeof Ionicons.glyphMap; color: string }) {
+  return <Ionicons name={name} size={24} color={color} />;
 }

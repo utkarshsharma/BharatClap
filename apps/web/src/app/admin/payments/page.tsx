@@ -1,256 +1,202 @@
-'use client'
+'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { IndianRupee, TrendingUp, Clock, CheckCircle2, Send } from 'lucide-react'
+  DollarSign,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react';
 
-// Mock data
-const stats = [
-  {
-    title: 'Total Revenue',
-    value: formatCurrency(4567800),
-    icon: IndianRupee,
-    color: 'text-green-600',
-  },
-  {
-    title: 'Platform Commission',
-    value: formatCurrency(456780),
-    icon: TrendingUp,
-    color: 'text-blue-600',
-  },
-  {
-    title: 'Pending Payouts',
-    value: formatCurrency(234500),
-    icon: Clock,
-    color: 'text-yellow-600',
-  },
-  {
-    title: 'Completed Payouts',
-    value: formatCurrency(4111020),
-    icon: CheckCircle2,
-    color: 'text-green-600',
-  },
-]
-
-const recentPayments = [
-  {
-    id: 'PAY-1001',
-    bookingId: 'BK-1001',
-    provider: 'Amit Kumar',
-    customer: 'Rahul Sharma',
-    amount: 1200,
-    commission: 120,
-    providerPayout: 1080,
-    status: 'completed',
-    paymentMethod: 'UPI',
-    date: '2026-02-10T10:30:00',
-  },
-  {
-    id: 'PAY-1002',
-    bookingId: 'BK-1002',
-    provider: 'Suresh Reddy',
-    customer: 'Priya Patel',
-    amount: 2500,
-    commission: 250,
-    providerPayout: 2250,
-    status: 'pending',
-    paymentMethod: 'Card',
-    date: '2026-02-10T09:15:00',
-  },
-  {
-    id: 'PAY-1003',
-    bookingId: 'BK-1003',
-    provider: 'Ravi Singh',
-    customer: 'Arjun Mehta',
-    amount: 3500,
-    commission: 350,
-    providerPayout: 3150,
-    status: 'pending',
-    paymentMethod: 'UPI',
-    date: '2026-02-10T08:00:00',
-  },
-  {
-    id: 'PAY-1004',
-    bookingId: 'BK-1004',
-    provider: 'Vijay Rao',
-    customer: 'Sneha Gupta',
-    amount: 800,
-    commission: 80,
-    providerPayout: 720,
-    status: 'completed',
-    paymentMethod: 'Wallet',
-    date: '2026-02-09T16:45:00',
-  },
-  {
-    id: 'PAY-1005',
-    bookingId: 'BK-1005',
-    provider: 'Deepak Joshi',
-    customer: 'Karan Malhotra',
-    amount: 1500,
-    commission: 150,
-    providerPayout: 1350,
-    status: 'refunded',
-    paymentMethod: 'Card',
-    date: '2026-02-09T14:20:00',
-  },
-  {
-    id: 'PAY-1006',
-    bookingId: 'BK-1006',
-    provider: 'Manoj Verma',
-    customer: 'Anjali Singh',
-    amount: 5000,
-    commission: 500,
-    providerPayout: 4500,
-    status: 'completed',
-    paymentMethod: 'UPI',
-    date: '2026-02-09T11:00:00',
-  },
-  {
-    id: 'PAY-1007',
-    bookingId: 'BK-1007',
-    provider: 'Santosh Kumar',
-    customer: 'Vikram Rao',
-    amount: 900,
-    commission: 90,
-    providerPayout: 810,
-    status: 'pending',
-    paymentMethod: 'UPI',
-    date: '2026-02-09T10:30:00',
-  },
-]
-
-const getStatusBadge = (status: string) => {
-  const variants: Record<string, 'success' | 'warning' | 'info' | 'destructive'> = {
-    completed: 'success',
-    pending: 'warning',
-    processing: 'info',
-    refunded: 'destructive',
-  }
-  return <Badge variant={variants[status]}>{status.toUpperCase()}</Badge>
+interface PaymentsResponse {
+  totalRevenue: number;
+  totalCommission: number;
+  pendingPayouts: number;
+  completedPayouts: number;
 }
 
 export default function PaymentsPage() {
-  const handleBatchPayout = () => {
-    alert('Batch payout initiated for all pending payments!')
-  }
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const queryClient = useQueryClient();
+
+  // Fetch payments data
+  const { data, isLoading, error } = useQuery<PaymentsResponse>({
+    queryKey: ['admin-payments'],
+    queryFn: async () => {
+      const response = await api.get('/admin/payments');
+      return response.data;
+    },
+  });
+
+  // Trigger batch payout mutation
+  const batchPayoutMutation = useMutation({
+    mutationFn: () => api.post('/admin/payouts/batch'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-payments'] });
+      setToastMessage('Batch payout triggered successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+    onError: (error: any) => {
+      setToastMessage(
+        error?.response?.data?.message || 'Failed to trigger batch payout'
+      );
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    },
+  });
+
+  const stats = [
+    {
+      label: 'Total Revenue',
+      value: formatCurrency(data?.totalRevenue || 0),
+      icon: DollarSign,
+      color: 'bg-blue-500',
+    },
+    {
+      label: 'Platform Commission',
+      value: formatCurrency(data?.totalCommission || 0),
+      icon: TrendingUp,
+      color: 'bg-green-500',
+    },
+    {
+      label: 'Pending Payouts',
+      value: formatCurrency(data?.pendingPayouts || 0),
+      icon: Clock,
+      color: 'bg-yellow-500',
+    },
+    {
+      label: 'Completed Payouts',
+      value: formatCurrency(data?.completedPayouts || 0),
+      icon: CheckCircle,
+      color: 'bg-purple-500',
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Payments Overview</h1>
-          <p className="text-gray-600 mt-2">Track revenue, commissions, and provider payouts</p>
+    <div className="p-8">
+      {/* Toast Notification */}
+      {showToast && (
+        <div className="fixed top-4 right-4 z-50 bg-white shadow-lg rounded-lg p-4 border-l-4 border-orange-500 max-w-md">
+          <div className="flex items-center">
+            <AlertCircle className="h-5 w-5 text-orange-500 mr-3" />
+            <p className="text-sm text-gray-900">{toastMessage}</p>
+          </div>
         </div>
-        <Button onClick={handleBatchPayout}>
-          <Send className="h-4 w-4 mr-2" />
-          Trigger Batch Payout
-        </Button>
+      )}
+
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Payments Overview</h1>
+            <p className="text-gray-600 mt-2">
+              Monitor revenue, commissions, and payouts
+            </p>
+          </div>
+          <button
+            onClick={() => batchPayoutMutation.mutate()}
+            disabled={batchPayoutMutation.isPending}
+            className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {batchPayoutMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                <DollarSign className="h-5 w-5" />
+                Trigger Batch Payout
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600">Failed to load payments data</p>
+            <p className="text-sm text-gray-500 mt-2">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={stat.label}
+                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {stat.value}
+                      </p>
+                    </div>
+                    <div className={`${stat.color} p-3 rounded-lg`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-      {/* Recent Payments Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Payment ID</TableHead>
-                <TableHead>Booking ID</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Commission</TableHead>
-                <TableHead>Provider Payout</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentPayments.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell className="font-medium">{payment.id}</TableCell>
-                  <TableCell>{payment.bookingId}</TableCell>
-                  <TableCell>{payment.provider}</TableCell>
-                  <TableCell>{payment.customer}</TableCell>
-                  <TableCell className="font-semibold">
-                    {formatCurrency(payment.amount)}
-                  </TableCell>
-                  <TableCell className="text-blue-600">
-                    {formatCurrency(payment.commission)}
-                  </TableCell>
-                  <TableCell className="text-green-600">
-                    {formatCurrency(payment.providerPayout)}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                  <TableCell>{payment.paymentMethod}</TableCell>
-                  <TableCell>{formatDateTime(payment.date)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Payment Method Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>UPI Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(2876000)}</div>
-            <p className="text-sm text-gray-600 mt-2">63% of total payments</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Card Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(1369920)}</div>
-            <p className="text-sm text-gray-600 mt-2">30% of total payments</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Wallet Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(321880)}</div>
-            <p className="text-sm text-gray-600 mt-2">7% of total payments</p>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Provider Payout Info */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Payout Summary
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-100 rounded-lg">
+                    <Clock className="h-5 w-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Pending Payouts</p>
+                    <p className="text-sm text-gray-500">Awaiting processing</p>
+                  </div>
+                </div>
+                <p className="font-semibold text-gray-900">
+                  {formatCurrency(data?.pendingPayouts || 0)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Completed Payouts</p>
+                    <p className="text-sm text-gray-500">Successfully transferred</p>
+                  </div>
+                </div>
+                <p className="font-semibold text-gray-900">
+                  {formatCurrency(data?.completedPayouts || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
-  )
+  );
 }

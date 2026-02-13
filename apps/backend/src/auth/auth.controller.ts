@@ -71,4 +71,19 @@ export class AuthController {
   async logout(@CurrentUser() user: User) {
     return this.authService.logout(user.id);
   }
+
+  @Public()
+  @Post('login/dev')
+  @ApiOperation({ summary: 'Dev-mode login by phone (development only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'User authenticated via dev mode',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Only available in development mode',
+  })
+  async loginDev(@Body() body: { phone: string }) {
+    return this.authService.loginDevMode(body.phone);
+  }
 }

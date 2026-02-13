@@ -1,5 +1,5 @@
 import "../../../global.css";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,18 +7,21 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import api from "@/services/api";
 
+// dayOfWeek: 0=Sunday, 1=Monday, ..., 6=Saturday (matches backend)
 const DAYS = [
-  { key: "mon", label: "Monday", short: "Mon" },
-  { key: "tue", label: "Tuesday", short: "Tue" },
-  { key: "wed", label: "Wednesday", short: "Wed" },
-  { key: "thu", label: "Thursday", short: "Thu" },
-  { key: "fri", label: "Friday", short: "Fri" },
-  { key: "sat", label: "Saturday", short: "Sat" },
-  { key: "sun", label: "Sunday", short: "Sun" },
+  { dayOfWeek: 1, label: "Monday", short: "Mon" },
+  { dayOfWeek: 2, label: "Tuesday", short: "Tue" },
+  { dayOfWeek: 3, label: "Wednesday", short: "Wed" },
+  { dayOfWeek: 4, label: "Thursday", short: "Thu" },
+  { dayOfWeek: 5, label: "Friday", short: "Fri" },
+  { dayOfWeek: 6, label: "Saturday", short: "Sat" },
+  { dayOfWeek: 0, label: "Sunday", short: "Sun" },
 ] as const;
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM to 10 PM
@@ -35,64 +38,115 @@ interface DaySchedule {
   endHour: number;
 }
 
-type Schedule = Record<string, DaySchedule>;
+type Schedule = Record<number, DaySchedule>;
 
 const defaultSchedule: Schedule = {
-  mon: { enabled: true, startHour: 9, endHour: 18 },
-  tue: { enabled: true, startHour: 9, endHour: 18 },
-  wed: { enabled: true, startHour: 9, endHour: 18 },
-  thu: { enabled: true, startHour: 9, endHour: 18 },
-  fri: { enabled: true, startHour: 9, endHour: 18 },
-  sat: { enabled: true, startHour: 10, endHour: 16 },
-  sun: { enabled: false, startHour: 10, endHour: 16 },
+  1: { enabled: true, startHour: 9, endHour: 18 },
+  2: { enabled: true, startHour: 9, endHour: 18 },
+  3: { enabled: true, startHour: 9, endHour: 18 },
+  4: { enabled: true, startHour: 9, endHour: 18 },
+  5: { enabled: true, startHour: 9, endHour: 18 },
+  6: { enabled: true, startHour: 10, endHour: 16 },
+  0: { enabled: false, startHour: 10, endHour: 16 },
 };
 
 export default function ProviderAvailabilityScreen() {
   const router = useRouter();
   const [schedule, setSchedule] = useState<Schedule>(defaultSchedule);
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const toggleDay = (dayKey: string) => {
+  useEffect(() => {
+    loadAvailability();
+  }, []);
+
+  const loadAvailability = async () => {
+    try {
+      const response = await api.get('/provider/availability');
+      const slots = response.data;
+      if (Array.isArray(slots) && slots.length > 0) {
+        const loaded: Schedule = { ...defaultSchedule };
+        for (const slot of slots) {
+          loaded[slot.dayOfWeek] = {
+            enabled: slot.isActive,
+            startHour: slot.startHour,
+            endHour: slot.endHour,
+          };
+        }
+        setSchedule(loaded);
+      }
+    } catch {
+      // Fall back to default schedule on error (e.g. 404 for new providers)
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleDay = (dayOfWeek: number) => {
     setSchedule((prev) => ({
       ...prev,
-      [dayKey]: {
-        ...prev[dayKey],
-        enabled: !prev[dayKey].enabled,
+      [dayOfWeek]: {
+        ...prev[dayOfWeek],
+        enabled: !prev[dayOfWeek].enabled,
       },
     }));
   };
 
-  const setStartHour = (dayKey: string, hour: number) => {
+  const setStartHour = (dayOfWeek: number, hour: number) => {
     setSchedule((prev) => {
-      const end = prev[dayKey].endHour;
+      const end = prev[dayOfWeek].endHour;
       if (hour >= end) {
         Alert.alert("Invalid Time", "Start time must be before end time.");
         return prev;
       }
       return {
         ...prev,
-        [dayKey]: { ...prev[dayKey], startHour: hour },
+        [dayOfWeek]: { ...prev[dayOfWeek], startHour: hour },
       };
     });
   };
 
-  const setEndHour = (dayKey: string, hour: number) => {
+  const setEndHour = (dayOfWeek: number, hour: number) => {
     setSchedule((prev) => {
-      const start = prev[dayKey].startHour;
+      const start = prev[dayOfWeek].startHour;
       if (hour <= start) {
         Alert.alert("Invalid Time", "End time must be after start time.");
         return prev;
       }
       return {
         ...prev,
-        [dayKey]: { ...prev[dayKey], endHour: hour },
+        [dayOfWeek]: { ...prev[dayOfWeek], endHour: hour },
       };
     });
   };
 
-  const handleSave = () => {
-    Alert.alert("Saved", "Availability saved successfully!");
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const slots = Object.entries(schedule).map(([dayStr, ds]) => ({
+        dayOfWeek: Number(dayStr),
+        startHour: ds.startHour,
+        endHour: ds.endHour,
+        isActive: ds.enabled,
+      }));
+      await api.patch('/provider/availability', { slots });
+      Alert.alert("Saved", "Availability saved successfully!");
+    } catch {
+      Alert.alert("Error", "Failed to save availability. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color="#FF6B00" />
+        <Text className="text-sm text-gray-500 mt-3">Loading availability...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -112,18 +166,18 @@ export default function ProviderAvailabilityScreen() {
         {/* Day Rows */}
         <View className="px-5">
           {DAYS.map((day) => {
-            const ds = schedule[day.key];
-            const isExpanded = expandedDay === day.key;
+            const ds = schedule[day.dayOfWeek];
+            const isExpanded = expandedDay === day.dayOfWeek;
 
             return (
               <View
-                key={day.key}
+                key={day.dayOfWeek}
                 className="bg-white border border-gray-200 rounded-2xl mb-3 overflow-hidden"
               >
                 {/* Day Header */}
                 <TouchableOpacity
                   onPress={() =>
-                    setExpandedDay(isExpanded ? null : day.key)
+                    setExpandedDay(isExpanded ? null : day.dayOfWeek)
                   }
                   activeOpacity={0.7}
                   className="flex-row items-center justify-between p-4"
@@ -131,7 +185,7 @@ export default function ProviderAvailabilityScreen() {
                   <View className="flex-row items-center flex-1">
                     <Switch
                       value={ds.enabled}
-                      onValueChange={() => toggleDay(day.key)}
+                      onValueChange={() => toggleDay(day.dayOfWeek)}
                       trackColor={{ false: "#E0E0E0", true: "#FFCC80" }}
                       thumbColor={ds.enabled ? "#FF6B00" : "#BDBDBD"}
                     />
@@ -168,7 +222,7 @@ export default function ProviderAvailabilityScreen() {
                       {HOURS.filter((h) => h < ds.endHour).map((hour) => (
                         <TouchableOpacity
                           key={`start-${hour}`}
-                          onPress={() => setStartHour(day.key, hour)}
+                          onPress={() => setStartHour(day.dayOfWeek, hour)}
                           className={`mr-2 px-3 py-2 rounded-lg ${
                             ds.startHour === hour
                               ? "bg-[#FF6B00]"
@@ -199,7 +253,7 @@ export default function ProviderAvailabilityScreen() {
                       {HOURS.filter((h) => h > ds.startHour).map((hour) => (
                         <TouchableOpacity
                           key={`end-${hour}`}
-                          onPress={() => setEndHour(day.key, hour)}
+                          onPress={() => setEndHour(day.dayOfWeek, hour)}
                           className={`mr-2 px-3 py-2 rounded-lg ${
                             ds.endHour === hour
                               ? "bg-[#FF6B00]"
@@ -232,10 +286,10 @@ export default function ProviderAvailabilityScreen() {
           </Text>
           <View className="bg-[#FFF3E0] rounded-2xl p-4">
             {DAYS.map((day) => {
-              const ds = schedule[day.key];
+              const ds = schedule[day.dayOfWeek];
               return (
                 <View
-                  key={day.key}
+                  key={day.dayOfWeek}
                   className="flex-row items-center justify-between py-1.5"
                 >
                   <Text className="text-sm font-semibold text-[#1A1A2E] w-12">
@@ -263,9 +317,12 @@ export default function ProviderAvailabilityScreen() {
         <View className="px-5 mt-2 mb-8">
           <TouchableOpacity
             onPress={handleSave}
-            className="bg-[#FF6B00] rounded-xl py-4 items-center"
+            disabled={saving}
+            className={`rounded-xl py-4 items-center ${saving ? "bg-[#FFB074]" : "bg-[#FF6B00]"}`}
           >
-            <Text className="text-base font-bold text-white">Save Availability</Text>
+            <Text className="text-base font-bold text-white">
+              {saving ? "Saving..." : "Save Availability"}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 import { bookingService } from "@/services/bookings";
+import { paymentService } from "@/services/payments";
 import { useBookingStore } from "@/store/bookingStore";
 import { formatCurrency, formatDate, formatTime } from "@/utils/format";
 
@@ -35,8 +36,9 @@ export default function BookingSummaryScreen() {
   const totalAmount = (selectedProvider as any)?.customPrice ?? selectedService?.basePrice ?? 0;
 
   const createBookingMutation = useMutation({
-    mutationFn: () =>
-      bookingService.createBooking({
+    mutationFn: async () => {
+      // 1. Create the booking (status: PENDING_PAYMENT)
+      const booking = await bookingService.createBooking({
         serviceId: selectedService!.id,
         providerId: selectedProvider!.id,
         scheduledDate: selectedDate!,
@@ -55,12 +57,18 @@ export default function BookingSummaryScreen() {
           : undefined,
         customerNotes: localNotes || undefined,
         emergencyContact: localEmergency || undefined,
-      }),
-    onSuccess: (booking) => {
+      });
+
+      // 2. Create a Razorpay payment order
+      const order = await paymentService.createPaymentOrder(booking.id);
+
+      return { booking, order };
+    },
+    onSuccess: ({ booking, order }) => {
       setCustomerNotes(localNotes);
       setEmergencyContact(localEmergency);
       router.push(
-        `/(customer)/booking/confirmation?bookingId=${booking.id}` as any
+        `/(customer)/booking/payment?bookingId=${booking.id}&orderId=${order.orderId}&amount=${order.amount}` as any
       );
     },
     onError: (error: any) => {

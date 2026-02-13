@@ -126,8 +126,14 @@ export class ServicesController {
     status: 404,
     description: 'Service not found',
   })
-  async getServiceBySlug(@Param('slug') slug: string) {
-    this.logger.log(`Fetching service with slug: ${slug}`);
-    return this.catalogService.getServiceBySlug(slug);
+  async getServiceBySlug(
+    @Param('slug') slug: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+  ) {
+    this.logger.log(`Fetching service with slug: ${slug}, lat: ${lat}, lng: ${lng}`);
+    const latNum = lat ? parseFloat(lat) : undefined;
+    const lngNum = lng ? parseFloat(lng) : undefined;
+    return this.catalogService.getServiceBySlug(slug, latNum, lngNum);
   }
 }

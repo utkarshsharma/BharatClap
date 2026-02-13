@@ -161,6 +161,37 @@ export class AuthService implements OnModuleInit {
     return { message: 'Logged out successfully' };
   }
 
+  async loginDevMode(phone: string) {
+    const nodeEnv = this.configService.get<string>('app.nodeEnv') || process.env.NODE_ENV;
+    if (nodeEnv !== 'development') {
+      throw new ForbiddenException('Dev login is only available in development mode');
+    }
+
+    // Try exact match first, then try with/without +91 prefix
+    const stripped = phone.replace(/^\+91/, '');
+    const withPrefix = `+91${stripped}`;
+
+    const user = await this.prisma.user.findFirst({
+      where: { phone: { in: [phone, stripped, withPrefix] } },
+      include: { providerProfile: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException(`No user found with phone: ${phone}`);
+    }
+
+    const { accessToken, refreshToken } = await this.generateTokens(
+      user.id,
+      user.role || UserRole.CUSTOMER,
+    );
+
+    return {
+      user,
+      accessToken,
+      refreshToken,
+    };
+  }
+
   async generateTokens(userId: string, role: UserRole) {
     const payload = { sub: userId, role };
 

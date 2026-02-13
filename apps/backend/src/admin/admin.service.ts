@@ -266,6 +266,61 @@ export class AdminService {
     };
   }
 
+  async getProviderDetail(providerId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: providerId },
+      include: {
+        providerProfile: {
+          include: {
+            providerServices: {
+              include: { service: { include: { category: true } } },
+            },
+            portfolioItems: true,
+            availability: true,
+          },
+        },
+        bookingsAsProvider: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          include: {
+            service: true,
+            customer: { select: { id: true, name: true, phone: true } },
+            payment: true,
+          },
+        },
+        reviewsReceived: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          include: {
+            customer: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!user || user.role !== 'PROVIDER') {
+      throw new NotFoundException('Provider not found');
+    }
+
+    const completedBookings = await this.prisma.booking.count({
+      where: { providerId: providerId, status: BookingStatus.COMPLETED },
+    });
+
+    const totalEarnings = await this.prisma.payment.aggregate({
+      where: {
+        booking: { providerId: providerId, status: BookingStatus.COMPLETED },
+        status: PaymentStatus.CAPTURED,
+      },
+      _sum: { providerPayout: true },
+    });
+
+    return {
+      ...user,
+      completedBookings,
+      totalEarnings: totalEarnings._sum?.providerPayout || 0,
+    };
+  }
+
   async approveProvider(providerId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: providerId },

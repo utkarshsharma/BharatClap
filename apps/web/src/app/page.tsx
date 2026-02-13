@@ -1,4 +1,8 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -18,18 +22,33 @@ import {
   Phone,
   Mail,
   MapPin,
+  Smartphone,
+  Bug,
+  Scissors,
+  LucideIcon,
 } from 'lucide-react'
+import customerApi from '@/lib/customer-api'
 
-const categories = [
-  { name: 'Plumbing', icon: Droplet, description: 'Pipe repairs, installations' },
-  { name: 'Electrical', icon: Zap, description: 'Wiring, fixtures, repairs' },
-  { name: 'Carpentry', icon: Wrench, description: 'Furniture, repairs, installations' },
-  { name: 'Painting', icon: Paintbrush, description: 'Interior & exterior painting' },
-  { name: 'AC Service', icon: Wind, description: 'Installation, repair, maintenance' },
-  { name: 'Cleaning', icon: Sparkles, description: 'Deep cleaning, regular cleaning' },
-  { name: 'Home Repair', icon: Home, description: 'General maintenance & repairs' },
-  { name: 'Appliance', icon: Package, description: 'Repair & maintenance' },
-]
+interface Category {
+  id: string
+  name: string
+  slug: string
+  description?: string
+  icon?: string
+}
+
+const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
+  'salon-for-women': Scissors,
+  'salon-for-men': Scissors,
+  'ac-appliance-repair': Wind,
+  'home-cleaning': Sparkles,
+  'electrician': Zap,
+  'plumber': Droplet,
+  'painter': Paintbrush,
+  'pest-control': Bug,
+}
+
+const DEFAULT_ICON = Wrench
 
 const trustPoints = [
   {
@@ -50,6 +69,34 @@ const trustPoints = [
 ]
 
 export default function HomePage() {
+  const router = useRouter()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data } = await customerApi.get('/categories')
+        // The API may return nested tree structure; extract top-level categories
+        const cats = Array.isArray(data) ? data : data.data ?? []
+        setCategories(cats)
+      } catch {
+        // Silently fail — categories section will be empty
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+    fetchCategories()
+  }, [])
+
+  const scrollToDownload = () => {
+    document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const getIconForCategory = (slug: string): LucideIcon => {
+    return CATEGORY_ICON_MAP[slug] || DEFAULT_ICON
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -77,7 +124,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <Button size="lg">
+          <Button size="lg" onClick={scrollToDownload}>
             Get the App
           </Button>
         </div>
@@ -95,11 +142,11 @@ export default function HomePage() {
               From plumbing to painting, we have got you covered across India.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="text-lg px-8 py-6">
+              <Button size="lg" className="text-lg px-8 py-6" onClick={() => router.push('/services')}>
                 Browse Services
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+              <Button size="lg" variant="outline" className="text-lg px-8 py-6" onClick={scrollToDownload}>
                 Download App
               </Button>
             </div>
@@ -115,19 +162,34 @@ export default function HomePage() {
             <p className="text-lg text-gray-600">Choose from a wide range of home services</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((category) => (
-              <Card key={category.name} className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <div className="bg-primary/10 text-primary p-3 rounded-lg w-fit mb-3">
-                    <category.icon className="h-8 w-8" />
-                  </div>
-                  <CardTitle className="text-xl">{category.name}</CardTitle>
-                  <CardDescription>{category.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
+          {loadingCategories ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {categories.map((category) => {
+                const Icon = getIconForCategory(category.slug)
+                return (
+                  <Card
+                    key={category.id}
+                    className="hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => router.push(`/services?category=${category.slug}`)}
+                  >
+                    <CardHeader>
+                      <div className="bg-primary/10 text-primary p-3 rounded-lg w-fit mb-3">
+                        <Icon className="h-8 w-8" />
+                      </div>
+                      <CardTitle className="text-xl">{category.name}</CardTitle>
+                      {category.description && (
+                        <CardDescription>{category.description}</CardDescription>
+                      )}
+                    </CardHeader>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -190,10 +252,37 @@ export default function HomePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Button size="lg" className="text-lg px-8 py-6">
+            <Button size="lg" className="text-lg px-8 py-6" onClick={() => router.push('/services')}>
               Start Booking Now
               <CheckCircle2 className="ml-2 h-5 w-5" />
             </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Download Section */}
+      <section id="download" className="py-20 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto text-center">
+            <Smartphone className="h-16 w-16 text-primary mx-auto mb-6" />
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Download BharatClap on Your Phone</h2>
+            <p className="text-lg text-gray-600 mb-8">
+              Get the full BharatClap experience on your mobile device. Book services on the go!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+                <svg className="w-6 h-6 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                App Store
+              </Button>
+              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+                <svg className="w-6 h-6 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                </svg>
+                Play Store
+              </Button>
+            </div>
           </div>
         </div>
       </section>

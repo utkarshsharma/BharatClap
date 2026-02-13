@@ -23,7 +23,12 @@ export default function CategoryDetailScreen() {
     enabled: !!slug,
   });
 
-  const { data: servicesData, isLoading: servicesLoading } = useQuery({
+  const {
+    data: servicesData,
+    isLoading: servicesLoading,
+    isError: servicesError,
+    refetch: refetchServices,
+  } = useQuery({
     queryKey: ["services", "category", slug],
     queryFn: () => catalogService.getServices({ categorySlug: slug }),
     enabled: !!slug,
@@ -72,6 +77,23 @@ export default function CategoryDetailScreen() {
       {/* Service List */}
       {isLoading ? (
         <ActivityIndicator size="large" color="#FF6B00" className="mt-12" />
+      ) : servicesError ? (
+        <View className="flex-1 items-center justify-center py-20">
+          <Text style={{ fontSize: 48 }}>{"⚠️"}</Text>
+          <Text className="text-lg font-semibold text-secondary mt-4">
+            Could not load services
+          </Text>
+          <Text className="text-sm text-gray-400 mt-1 text-center px-10">
+            Please check your connection and try again
+          </Text>
+          <TouchableOpacity
+            onPress={() => refetchServices()}
+            className="mt-5 px-6 py-3 rounded-xl bg-primary"
+            activeOpacity={0.8}
+          >
+            <Text className="text-white font-bold">Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           data={services}
@@ -81,12 +103,12 @@ export default function CategoryDetailScreen() {
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 24, flexGrow: 1 }}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center py-20">
-              <Text style={{ fontSize: 48 }}>📭</Text>
+              <Text style={{ fontSize: 48 }}>{"📭"}</Text>
               <Text className="text-lg font-semibold text-secondary mt-4">
-                No services found
+                No services in this category
               </Text>
               <Text className="text-sm text-gray-400 mt-1 text-center px-10">
-                Services in this category will appear here
+                New services will appear here soon
               </Text>
             </View>
           }

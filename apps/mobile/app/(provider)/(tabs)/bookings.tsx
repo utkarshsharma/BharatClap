@@ -44,7 +44,6 @@ export default function ProviderBookingsScreen() {
     data,
     isLoading,
     refetch,
-    isFetchingNextPage,
   } = useQuery({
     queryKey: ["provider-bookings", activeFilter, page],
     queryFn: () =>

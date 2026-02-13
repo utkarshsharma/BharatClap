@@ -213,6 +213,20 @@ export class BookingsController {
     return this.bookingsService.cancelBooking(userId, id, cancelBookingDto);
   }
 
+  @Post(':id/dev-confirm')
+  @ApiOperation({ summary: 'Dev-mode payment bypass (development only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking confirmed with mock payment',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Only available in development mode',
+  })
+  async devConfirm(@Param('id') id: string) {
+    return this.bookingsService.devConfirm(id);
+  }
+
   @Post(':id/rebook')
   @Roles(UserRole.CUSTOMER)
   @ApiOperation({ summary: 'Rebook a previous booking' })

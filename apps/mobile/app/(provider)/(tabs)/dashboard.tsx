@@ -59,6 +59,12 @@ export default function ProviderDashboardScreen() {
       bookingService.getBookings({ role: "provider", status: "PROVIDER_ASSIGNED" }),
   });
 
+  const { data: weekData, refetch: refetchWeek } = useQuery({
+    queryKey: ["provider-week-earnings"],
+    queryFn: () =>
+      bookingService.getBookings({ role: "provider", status: "COMPLETED" }),
+  });
+
   const acceptMutation = useMutation({
     mutationFn: (id: string) => bookingService.acceptBooking(id),
     onSuccess: () => {
@@ -83,9 +89,9 @@ export default function ProviderDashboardScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchPending(), refetchToday()]);
+    await Promise.all([refetchPending(), refetchToday(), refetchWeek()]);
     setRefreshing(false);
-  }, [refetchPending, refetchToday]);
+  }, [refetchPending, refetchToday, refetchWeek]);
 
   const pendingBookings = pendingData?.bookings ?? [];
   const todayBookings = (todayData?.bookings ?? [])
@@ -96,6 +102,12 @@ export default function ProviderDashboardScreen() {
     (sum: number, b: Booking) => sum + (b.finalPrice ?? 0),
     0
   );
+
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const weekEarnings = (weekData?.bookings ?? [])
+    .filter((b: Booking) => new Date(b.scheduledDate) >= oneWeekAgo)
+    .reduce((sum: number, b: Booking) => sum + (b.finalPrice ?? 0), 0);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -150,7 +162,7 @@ export default function ProviderDashboardScreen() {
               <View className="bg-[#FFF3E0] rounded-2xl p-4">
                 <Text className="text-xs text-[#757575] mb-1">This Week</Text>
                 <Text className="text-xl font-bold text-[#FF6B00]">
-                  {formatCurrency(0)}
+                  {formatCurrency(weekEarnings)}
                 </Text>
               </View>
             </View>

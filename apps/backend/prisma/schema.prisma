@@ -121,8 +121,9 @@ model ProviderProfile {
   yearsExperience Int?     @map("years_experience")
   certifications  String[] @default([])
   languagesSpoken String[] @default([]) @map("languages_spoken")
-  videoIntroUrl   String?  @map("video_intro_url")
-  createdAt       DateTime @default(now()) @map("created_at")
+  videoIntroUrl      String?  @map("video_intro_url")
+  razorpayAccountId  String?  @map("razorpay_account_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   providerServices ProviderService[]
