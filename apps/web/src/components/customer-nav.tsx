@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { getCustomerUser, isCustomerLoggedIn, customerLogout } from '@/lib/auth'
-import { Home, LogOut, CalendarDays, MapPin, ChevronDown, Locate, Loader2, UserCircle } from 'lucide-react'
+import { Home, LogOut, CalendarDays, MapPin, ChevronDown, Locate, Loader2, UserCircle, Heart, Bell, MapPinned } from 'lucide-react'
+import customerApi from '@/lib/customer-api'
 import { CITIES as CITY_LIST, getCityCoords, getStoredCoords, storeUserCoords, findNearestCity } from '@/lib/cities'
 
 const CITIES = CITY_LIST.map((c) => c.name)
@@ -39,11 +40,19 @@ export function CustomerNav() {
   const [city, setCity] = useState(CITIES[0])
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false)
   const [detectingLocation, setDetectingLocation] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    setLoggedIn(isCustomerLoggedIn())
+    const isLogged = isCustomerLoggedIn()
+    setLoggedIn(isLogged)
     setUser(getCustomerUser())
     setCity(getSelectedCity())
+
+    if (isLogged) {
+      customerApi.get('/notifications/unread-count')
+        .then((res) => setUnreadCount(typeof res.data === 'number' ? res.data : res.data?.count ?? 0))
+        .catch(() => {})
+    }
   }, [])
 
   // Close dropdown when clicking outside
@@ -162,6 +171,23 @@ export function CustomerNav() {
               <Link href="/my-bookings" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
                 <CalendarDays className="h-4 w-4" />
                 My Bookings
+              </Link>
+              <Link href="/addresses" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
+                <MapPinned className="h-4 w-4" />
+                Addresses
+              </Link>
+              <Link href="/favorites" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
+                <Heart className="h-4 w-4" />
+                Favorites
+              </Link>
+              <Link href="/notifications" className="relative text-gray-700 hover:text-primary transition flex items-center gap-1">
+                <Bell className="h-4 w-4" />
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </Link>
               <Link href="/profile" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
                 <UserCircle className="h-4 w-4" />

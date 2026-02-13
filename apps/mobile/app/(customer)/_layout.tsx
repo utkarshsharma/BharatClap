@@ -16,8 +16,11 @@ export default function CustomerLayout() {
       <Stack.Screen name="booking/[id]" />
       <Stack.Screen name="booking/select-provider" />
       <Stack.Screen name="review/[bookingId]" />
+      <Stack.Screen name="addresses" />
       <Stack.Screen name="favorites" />
+      <Stack.Screen name="notifications" />
       <Stack.Screen name="help" />
+      <Stack.Screen name="address-form" />
     </Stack>
   );
 }

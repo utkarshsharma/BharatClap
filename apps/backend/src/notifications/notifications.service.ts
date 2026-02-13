@@ -143,17 +143,24 @@ export class NotificationsService {
       throw new NotFoundException('User not found');
     }
 
-    // Note: FCM token storage would need a separate table or field
-    // For now, log the registration
-    this.logger.log(
-      `FCM token received for user ${userId}: ${dto.fcmToken} (${dto.platform || 'unknown'})`,
-    );
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken: dto.fcmToken, fcmPlatform: dto.platform || 'unknown' },
+    });
 
     this.logger.log(
       `FCM token registered for user ${userId} (${dto.platform || 'unknown'})`,
     );
 
     return { success: true, message: 'Device registered successfully' };
+  }
+
+  async markAllAsRead(userId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true },
+    });
+    return { updated: result.count };
   }
 
   async getUnreadCount(userId: string): Promise<number> {

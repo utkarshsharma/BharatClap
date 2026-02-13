@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { CustomerNav } from '@/components/customer-nav'
 import { isCustomerLoggedIn, getCustomerUser, setCustomerAuth, customerLogout } from '@/lib/auth'
 import customerApi from '@/lib/customer-api'
-import { User, Save, Mail, Phone, MapPin, Globe, Trash2, Download, Loader2, ArrowLeft, LogOut } from 'lucide-react'
+import Link from 'next/link'
+import { User, Save, Mail, Phone, MapPin, Globe, Trash2, Download, Loader2, ArrowLeft, LogOut, Bell, MapPinned, Heart } from 'lucide-react'
 
 const CITIES = ['Delhi NCR', 'Mumbai', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Pune']
 
@@ -26,6 +27,10 @@ interface ProfileData {
   city: string | null
   role: string
   isActive: boolean
+  notifPush?: boolean
+  notifWhatsapp?: boolean
+  notifBooking?: boolean
+  notifPromo?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -44,6 +49,11 @@ export default function ProfilePage() {
   const [email, setEmail] = useState('')
   const [city, setCity] = useState('')
   const [language, setLanguage] = useState('en')
+  const [notifPush, setNotifPush] = useState(true)
+  const [notifWhatsapp, setNotifWhatsapp] = useState(false)
+  const [notifBooking, setNotifBooking] = useState(true)
+  const [notifPromo, setNotifPromo] = useState(true)
+  const [savingNotif, setSavingNotif] = useState(false)
 
   useEffect(() => {
     if (!isCustomerLoggedIn()) {
@@ -62,6 +72,10 @@ export default function ProfilePage() {
       setEmail(data.email || '')
       setCity(data.city || '')
       setLanguage(data.preferredLanguage || 'en')
+      setNotifPush(data.notifPush ?? true)
+      setNotifWhatsapp(data.notifWhatsapp ?? false)
+      setNotifBooking(data.notifBooking ?? true)
+      setNotifPromo(data.notifPromo ?? true)
     } catch {
       setMessage({ type: 'error', text: 'Failed to load profile.' })
     } finally {
@@ -147,6 +161,21 @@ export default function ProfilePage() {
     } catch {
       setMessage({ type: 'error', text: 'Failed to delete account.' })
       setDeleting(false)
+    }
+  }
+
+  const handleNotifToggle = async (field: string, value: boolean) => {
+    setSavingNotif(true)
+    try {
+      await customerApi.patch('/users/me', { [field]: value })
+    } catch {
+      // Revert on error
+      if (field === 'notifPush') setNotifPush(!value)
+      if (field === 'notifWhatsapp') setNotifWhatsapp(!value)
+      if (field === 'notifBooking') setNotifBooking(!value)
+      if (field === 'notifPromo') setNotifPromo(!value)
+    } finally {
+      setSavingNotif(false)
     }
   }
 
@@ -310,6 +339,73 @@ export default function ProfilePage() {
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
+
+        {/* Quick Links */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Link
+              href="/addresses"
+              className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            >
+              <MapPinned className="h-5 w-5 text-[#FF6B00]" />
+              <span className="text-sm font-medium text-gray-700">My Addresses</span>
+            </Link>
+            <Link
+              href="/favorites"
+              className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            >
+              <Heart className="h-5 w-5 text-[#FF6B00]" />
+              <span className="text-sm font-medium text-gray-700">Favorites</span>
+            </Link>
+            <Link
+              href="/notifications"
+              className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            >
+              <Bell className="h-5 w-5 text-[#FF6B00]" />
+              <span className="text-sm font-medium text-gray-700">Notifications</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Notification Preferences */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <Bell className="h-5 w-5 text-[#FF6B00]" />
+            Notification Preferences
+          </h2>
+          <div className="space-y-4">
+            {[
+              { key: 'notifPush', label: 'Push Notifications', desc: 'Receive alerts on your device', value: notifPush, setter: setNotifPush },
+              { key: 'notifWhatsapp', label: 'WhatsApp Notifications', desc: 'Get updates on WhatsApp', value: notifWhatsapp, setter: setNotifWhatsapp },
+              { key: 'notifBooking', label: 'Booking Updates', desc: 'Status changes and reminders', value: notifBooking, setter: setNotifBooking },
+              { key: 'notifPromo', label: 'Promotional', desc: 'Deals, offers, and new services', value: notifPromo, setter: setNotifPromo },
+            ].map((item) => (
+              <div key={item.key} className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{item.label}</p>
+                  <p className="text-xs text-gray-500">{item.desc}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    item.setter(!item.value)
+                    handleNotifToggle(item.key, !item.value)
+                  }}
+                  disabled={savingNotif}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    item.value ? 'bg-[#FF6B00]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      item.value ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Data & Account Section */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8">

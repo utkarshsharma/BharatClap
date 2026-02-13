@@ -71,6 +71,17 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(user.sub, notificationId);
   }
 
+  @Patch('read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  @ApiResponse({
+    status: 200,
+    description: 'All notifications marked as read',
+  })
+  async markAllAsRead(@CurrentUser() user: JwtPayload) {
+    return this.notificationsService.markAllAsRead(user.sub);
+  }
+
   @Post('device')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register FCM device token' })

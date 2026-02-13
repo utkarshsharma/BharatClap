@@ -34,6 +34,10 @@ export interface UpdateUserData {
   avatarUrl?: string;
   preferredLanguage?: string;
   city?: string;
+  notifPush?: boolean;
+  notifWhatsapp?: boolean;
+  notifBooking?: boolean;
+  notifPromo?: boolean;
 }
 
 export const userService = {

@@ -36,10 +36,17 @@ export default function SettingsScreen() {
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [pushNotifications, setPushNotifications] = useState(true);
   const [whatsappNotifications, setWhatsappNotifications] = useState(false);
+  const [bookingNotifications, setBookingNotifications] = useState(true);
+  const [promoNotifications, setPromoNotifications] = useState(true);
+  const [savingNotif, setSavingNotif] = useState(false);
 
   useEffect(() => {
-    if (profile?.preferredLanguage) {
-      setSelectedLanguage(profile.preferredLanguage);
+    if (profile) {
+      if (profile.preferredLanguage) setSelectedLanguage(profile.preferredLanguage);
+      setPushNotifications((profile as any).notifPush ?? true);
+      setWhatsappNotifications((profile as any).notifWhatsapp ?? false);
+      setBookingNotifications((profile as any).notifBooking ?? true);
+      setPromoNotifications((profile as any).notifPromo ?? true);
     }
   }, [profile]);
 
@@ -93,6 +100,23 @@ export default function SettingsScreen() {
       Alert.alert("Error", "Failed to export data. Please try again.");
     },
   });
+
+  const handleNotifToggle = async (field: string, value: boolean) => {
+    setSavingNotif(true);
+    try {
+      await userService.updateProfile({ [field]: value } as any);
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+    } catch {
+      // Revert on error
+      if (field === "notifPush") setPushNotifications(!value);
+      if (field === "notifWhatsapp") setWhatsappNotifications(!value);
+      if (field === "notifBooking") setBookingNotifications(!value);
+      if (field === "notifPromo") setPromoNotifications(!value);
+      Alert.alert("Error", "Failed to update notification preference.");
+    } finally {
+      setSavingNotif(false);
+    }
+  };
 
   const handleLanguageChange = (langCode: string) => {
     setSelectedLanguage(langCode);
@@ -239,31 +263,65 @@ export default function SettingsScreen() {
                   Push Notifications
                 </Text>
                 <Text className="text-xs text-gray-500 mt-0.5">
-                  Receive booking updates and promotions
+                  Receive alerts on your device
                 </Text>
               </View>
               <Switch
                 value={pushNotifications}
-                onValueChange={setPushNotifications}
+                onValueChange={(v) => { setPushNotifications(v); handleNotifToggle("notifPush", v); }}
                 trackColor={{ false: "#D1D5DB", true: "#FFCEA0" }}
                 thumbColor={pushNotifications ? "#FF6B00" : "#9CA3AF"}
+              />
+            </View>
+
+            <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-gray-100">
+              <View className="flex-1 mr-3">
+                <Text className="text-base text-secondary font-medium">
+                  WhatsApp Notifications
+                </Text>
+                <Text className="text-xs text-gray-500 mt-0.5">
+                  Get updates on WhatsApp
+                </Text>
+              </View>
+              <Switch
+                value={whatsappNotifications}
+                onValueChange={(v) => { setWhatsappNotifications(v); handleNotifToggle("notifWhatsapp", v); }}
+                trackColor={{ false: "#D1D5DB", true: "#FFCEA0" }}
+                thumbColor={whatsappNotifications ? "#FF6B00" : "#9CA3AF"}
+              />
+            </View>
+
+            <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-gray-100">
+              <View className="flex-1 mr-3">
+                <Text className="text-base text-secondary font-medium">
+                  Booking Updates
+                </Text>
+                <Text className="text-xs text-gray-500 mt-0.5">
+                  Status changes and reminders
+                </Text>
+              </View>
+              <Switch
+                value={bookingNotifications}
+                onValueChange={(v) => { setBookingNotifications(v); handleNotifToggle("notifBooking", v); }}
+                trackColor={{ false: "#D1D5DB", true: "#FFCEA0" }}
+                thumbColor={bookingNotifications ? "#FF6B00" : "#9CA3AF"}
               />
             </View>
 
             <View className="flex-row items-center justify-between px-4 py-3.5">
               <View className="flex-1 mr-3">
                 <Text className="text-base text-secondary font-medium">
-                  WhatsApp Notifications
+                  Promotional
                 </Text>
                 <Text className="text-xs text-gray-500 mt-0.5">
-                  Get booking confirmations on WhatsApp
+                  Deals, offers, and new services
                 </Text>
               </View>
               <Switch
-                value={whatsappNotifications}
-                onValueChange={setWhatsappNotifications}
+                value={promoNotifications}
+                onValueChange={(v) => { setPromoNotifications(v); handleNotifToggle("notifPromo", v); }}
                 trackColor={{ false: "#D1D5DB", true: "#FFCEA0" }}
-                thumbColor={whatsappNotifications ? "#FF6B00" : "#9CA3AF"}
+                thumbColor={promoNotifications ? "#FF6B00" : "#9CA3AF"}
               />
             </View>
           </View>

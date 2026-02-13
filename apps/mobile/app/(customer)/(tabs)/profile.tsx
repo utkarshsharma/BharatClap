@@ -66,7 +66,7 @@ export default function CustomerProfileScreen() {
     {
       label: "My Addresses",
       icon: "\uD83D\uDCCD",
-      onPress: () => Alert.alert("Coming Soon", "Address management will be available in a future update."),
+      onPress: () => router.push("/(customer)/addresses" as any),
     },
     {
       label: "Favorite Providers",

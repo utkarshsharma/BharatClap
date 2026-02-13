@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEmail, MinLength, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsEmail, IsBoolean, MinLength, MaxLength } from 'class-validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
@@ -47,4 +47,24 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(100)
   city?: string;
+
+  @ApiPropertyOptional({ description: 'Enable push notifications', example: true })
+  @IsOptional()
+  @IsBoolean()
+  notifPush?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable WhatsApp notifications', example: false })
+  @IsOptional()
+  @IsBoolean()
+  notifWhatsapp?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable booking update notifications', example: true })
+  @IsOptional()
+  @IsBoolean()
+  notifBooking?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable promotional notifications', example: true })
+  @IsOptional()
+  @IsBoolean()
+  notifPromo?: boolean;
 }

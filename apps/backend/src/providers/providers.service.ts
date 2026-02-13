@@ -602,7 +602,7 @@ export class ProvidersService {
   }
 
   async addFavorite(customerId: string, providerId: string) {
-    // Verify provider exists
+    // providerId here is the ProviderProfile.id — look up the User.id for the FK
     const provider = await this.prisma.providerProfile.findUnique({
       where: { id: providerId },
     });
@@ -611,12 +611,14 @@ export class ProvidersService {
       throw new NotFoundException('Provider not found');
     }
 
+    const providerUserId = provider.userId;
+
     // Check if already favorited
     const existing = await this.prisma.favoriteProvider.findUnique({
       where: {
         customerId_providerId: {
           customerId,
-          providerId,
+          providerId: providerUserId,
         },
       },
     });
@@ -628,7 +630,7 @@ export class ProvidersService {
     return this.prisma.favoriteProvider.create({
       data: {
         customerId,
-        providerId,
+        providerId: providerUserId,
       },
       include: {
         provider: {
@@ -643,11 +645,22 @@ export class ProvidersService {
   }
 
   async removeFavorite(customerId: string, providerId: string) {
+    // providerId here is the ProviderProfile.id — look up the User.id for the FK
+    const provider = await this.prisma.providerProfile.findUnique({
+      where: { id: providerId },
+    });
+
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+
+    const providerUserId = provider.userId;
+
     const favorite = await this.prisma.favoriteProvider.findUnique({
       where: {
         customerId_providerId: {
           customerId,
-          providerId,
+          providerId: providerUserId,
         },
       },
     });
@@ -660,7 +673,7 @@ export class ProvidersService {
       where: {
         customerId_providerId: {
           customerId,
-          providerId,
+          providerId: providerUserId,
         },
       },
     });
@@ -679,7 +692,19 @@ export class ProvidersService {
             select: {
               id: true,
               name: true,
+              phone: true,
+              email: true,
               avatarUrl: true,
+              city: true,
+              providerProfile: {
+                select: {
+                  id: true,
+                  bio: true,
+                  avgRating: true,
+                  totalJobs: true,
+                  aadhaarVerified: true,
+                },
+              },
             },
           },
         },

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -14,6 +15,7 @@ import axios from "axios";
 import { API_URL } from "@/constants/config";
 import { useAuthStore } from "@/store/authStore";
 import { useBookingStore } from "@/store/bookingStore";
+import { providerService } from "@/services/providers";
 import { formatRating, formatCurrency } from "@/utils/format";
 
 /* ---------- Types matching GET /providers/:id response ---------- */
@@ -119,10 +121,12 @@ export default function ProviderProfileScreen() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewPage, setReviewPage] = useState(1);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [togglingFav, setTogglingFav] = useState(false);
 
   const REVIEWS_PER_PAGE = 5;
 
-  /* Fetch provider profile */
+  /* Fetch provider profile + favorite status */
   useEffect(() => {
     if (!id) return;
 
@@ -136,6 +140,17 @@ export default function ProviderProfileScreen() {
         }
         const res = await axios.get(`${API_URL}/providers/${id}`, { headers });
         setProvider(res.data);
+
+        // Check if this provider is in the user's favorites
+        if (accessToken) {
+          try {
+            const favRes = await providerService.getFavorites();
+            const isFav = favRes.some((fav) => fav.id === id);
+            setIsFavorite(isFav);
+          } catch {
+            // Non-critical — default to unfavorited
+          }
+        }
       } catch (err: any) {
         setError(err?.response?.data?.message ?? "Failed to load provider");
       } finally {
@@ -183,6 +198,24 @@ export default function ProviderProfileScreen() {
       reviewCount: reviewTotal,
     });
     router.push("/(customer)/booking/schedule" as any);
+  };
+
+  const toggleFavorite = async () => {
+    if (!provider || togglingFav) return;
+    setTogglingFav(true);
+    try {
+      if (isFavorite) {
+        await providerService.removeFavorite(provider.id);
+        setIsFavorite(false);
+      } else {
+        await providerService.addFavorite(provider.id);
+        setIsFavorite(true);
+      }
+    } catch {
+      Alert.alert("Error", "Failed to update favorite status.");
+    } finally {
+      setTogglingFav(false);
+    }
   };
 
   const totalPages = Math.ceil(reviewTotal / REVIEWS_PER_PAGE);
@@ -233,6 +266,15 @@ export default function ProviderProfileScreen() {
         >
           Provider Profile
         </Text>
+        <TouchableOpacity
+          onPress={toggleFavorite}
+          disabled={togglingFav}
+          className="p-2"
+        >
+          <Text style={{ fontSize: 24 }}>
+            {isFavorite ? "\u2764\uFE0F" : "\uD83E\uDD0D"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>

@@ -98,7 +98,30 @@ export const providerService = {
 
   getFavorites: async (): Promise<Provider[]> => {
     const response = await api.get('/favorites');
-    return response.data;
+    const raw = response.data.data ?? response.data;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((fav: any) => {
+      // Each favorite has a `provider` relation with user data
+      if (fav.provider) {
+        return {
+          id: fav.provider.providerProfile?.id ?? fav.providerId ?? fav.provider.id,
+          name: fav.provider.name ?? fav.provider.user?.name ?? 'Provider',
+          phone: fav.provider.phone ?? fav.provider.user?.phone ?? '',
+          email: fav.provider.email ?? fav.provider.user?.email,
+          avatar: fav.provider.avatarUrl ?? fav.provider.user?.avatarUrl,
+          bio: fav.provider.providerProfile?.bio ?? fav.provider.bio,
+          city: fav.provider.city ?? fav.provider.user?.city ?? '',
+          rating: fav.provider.providerProfile?.avgRating ?? fav.provider.avgRating ?? 0,
+          reviewCount: fav.provider.providerProfile?.totalJobs ?? fav.provider.totalJobs ?? 0,
+          completedBookings: fav.provider.providerProfile?.totalJobs ?? fav.provider.totalJobs ?? 0,
+          isActive: true,
+          isVerified: fav.provider.providerProfile?.aadhaarVerified ?? fav.provider.aadhaarVerified ?? false,
+          isFavorite: true,
+        };
+      }
+      // Fallback: raw might already be a provider-like object
+      return mapProvider(fav);
+    });
   },
 
   // Provider self-management

@@ -73,6 +73,12 @@ model User {
   preferredLanguage  String   @default("en") @map("preferred_language")
   city               String?
   isActive           Boolean  @default(true) @map("is_active")
+  notifPush          Boolean  @default(true) @map("notif_push")
+  notifWhatsapp      Boolean  @default(false) @map("notif_whatsapp")
+  notifBooking       Boolean  @default(true) @map("notif_booking")
+  notifPromo         Boolean  @default(true) @map("notif_promo")
+  fcmToken           String?  @map("fcm_token")
+  fcmPlatform        String?  @map("fcm_platform")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
