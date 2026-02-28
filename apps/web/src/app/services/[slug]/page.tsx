@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CustomerNav, getSelectedCityCoords } from '@/components/customer-nav'
 import { formatCurrency } from '@/lib/utils'
-import { Loader2, Star, Clock, CheckCircle, XCircle, ArrowLeft, User, MapPin } from 'lucide-react'
+import { Loader2, Star, Clock, CheckCircle, XCircle, ArrowLeft, User, MapPin, Heart } from 'lucide-react'
+import { isCustomerLoggedIn } from '@/lib/auth'
+import customerApi from '@/lib/customer-api'
 
 const queryClient = new QueryClient()
 
@@ -56,12 +58,36 @@ function ServiceDetailContent() {
   const slug = params.slug as string
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null)
   const [cityKey, setCityKey] = useState(0)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
+  const [togglingFavId, setTogglingFavId] = useState<string | null>(null)
 
   // Refetch when city changes
   useEffect(() => {
     const handler = () => setCityKey((k) => k + 1)
     window.addEventListener('city-changed', handler)
     return () => window.removeEventListener('city-changed', handler)
+  }, [])
+
+  // Check auth and fetch user's favorites
+  useEffect(() => {
+    const isLogged = isCustomerLoggedIn()
+    setLoggedIn(isLogged)
+    if (isLogged) {
+      customerApi.get('/favorites?limit=100')
+        .then((res) => {
+          const raw = res.data.data ?? res.data
+          if (Array.isArray(raw)) {
+            const ids = new Set<string>()
+            for (const fav of raw) {
+              const profileId = fav.provider?.providerProfile?.id
+              if (profileId) ids.add(profileId)
+            }
+            setFavoriteIds(ids)
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
 
   const { data: service, isLoading, error } = useQuery({
@@ -81,7 +107,44 @@ function ServiceDetailContent() {
 
   const handleContinue = () => {
     if (!service || !selectedProvider) return
-    router.push(`/book?serviceId=${service.id}&providerId=${selectedProvider.userId}`)
+    router.push(`/book?serviceId=${service.id}&providerId=${selectedProvider.id}`)
+  }
+
+  const toggleFavorite = async (providerId: string) => {
+    if (!loggedIn) {
+      router.push(`/login?redirect=${encodeURIComponent(`/services/${slug}`)}`)
+      return
+    }
+    if (togglingFavId) return
+    setTogglingFavId(providerId)
+
+    const wasFav = favoriteIds.has(providerId)
+
+    // Optimistic update
+    setFavoriteIds((prev) => {
+      const next = new Set(prev)
+      if (wasFav) next.delete(providerId)
+      else next.add(providerId)
+      return next
+    })
+
+    try {
+      if (wasFav) {
+        await customerApi.delete(`/providers/${providerId}/favorite`)
+      } else {
+        await customerApi.post(`/providers/${providerId}/favorite`)
+      }
+    } catch {
+      // Revert on failure
+      setFavoriteIds((prev) => {
+        const reverted = new Set(prev)
+        if (wasFav) reverted.add(providerId)
+        else reverted.delete(providerId)
+        return reverted
+      })
+    } finally {
+      setTogglingFavId(null)
+    }
   }
 
   if (isLoading) {
@@ -229,21 +292,45 @@ function ServiceDetailContent() {
                             </div>
                           </div>
 
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-primary">
-                              {formatCurrency(provider.price)}
-                            </p>
-                            <Button
-                              size="sm"
-                              variant={isSelected ? 'default' : 'outline'}
-                              className="mt-1"
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
+                              disabled={togglingFavId === provider.id}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                setSelectedProvider(provider)
+                                toggleFavorite(provider.id)
                               }}
+                              aria-label={
+                                favoriteIds.has(provider.id)
+                                  ? `Remove ${provider.name} from favorites`
+                                  : `Add ${provider.name} to favorites`
+                              }
                             >
-                              {isSelected ? 'Selected' : 'Select'}
-                            </Button>
+                              <Heart
+                                className={`h-5 w-5 transition-colors ${
+                                  favoriteIds.has(provider.id)
+                                    ? 'fill-red-500 text-red-500'
+                                    : 'text-gray-400 hover:text-red-400'
+                                }`}
+                              />
+                            </button>
+                            <div className="text-right">
+                              <p className="text-xl font-bold text-primary">
+                                {formatCurrency(provider.price)}
+                              </p>
+                              <Button
+                                size="sm"
+                                variant={isSelected ? 'default' : 'outline'}
+                                className="mt-1"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedProvider(provider)
+                                }}
+                              >
+                                {isSelected ? 'Selected' : 'Select'}
+                              </Button>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
