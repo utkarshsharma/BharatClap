@@ -79,6 +79,7 @@ export function CustomerNav() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [city, setCity] = useState(CITIES[0])
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -129,14 +130,17 @@ export function CustomerNav() {
     }
   }, [])
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setDropdownOpen(false)
-    if (dropdownOpen) {
+    const handleClickOutside = () => {
+      setDropdownOpen(false)
+      setUserMenuOpen(false)
+    }
+    if (dropdownOpen || userMenuOpen) {
       document.addEventListener('click', handleClickOutside)
       return () => document.removeEventListener('click', handleClickOutside)
     }
-  }, [dropdownOpen])
+  }, [dropdownOpen, userMenuOpen])
 
   const handleAddressSelect = useCallback(
     (addr: NavAddress) => {
@@ -218,6 +222,7 @@ export function CustomerNav() {
             <button
               onClick={(e) => {
                 e.stopPropagation()
+                setUserMenuOpen(false)
                 setDropdownOpen(!dropdownOpen)
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition max-w-[220px]"
@@ -349,46 +354,106 @@ export function CustomerNav() {
             Services
           </Link>
           {loggedIn && (
-            <>
-              <Link href="/my-bookings" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
-                <CalendarDays className="h-4 w-4" />
-                My Bookings
-              </Link>
-              <Link href="/addresses" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
-                <MapPinned className="h-4 w-4" />
-                Addresses
-              </Link>
-              <Link href="/favorites" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
-                <Heart className="h-4 w-4" />
-                Favorites
-              </Link>
-              <Link href="/notifications" className="relative text-gray-700 hover:text-primary transition flex items-center gap-1">
-                <Bell className="h-4 w-4" />
-                Notifications
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </Link>
-              <Link href="/profile" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
-                <UserCircle className="h-4 w-4" />
-                Profile
-              </Link>
-            </>
+            <Link href="/my-bookings" className="text-gray-700 hover:text-primary transition flex items-center gap-1">
+              <CalendarDays className="h-4 w-4" />
+              My Bookings
+            </Link>
           )}
         </div>
 
         <div className="flex items-center gap-3">
           {loggedIn && user ? (
             <>
-              <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                {user.name || 'Customer'}
-              </span>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-1" />
-                Logout
-              </Button>
+              {/* Standalone bell icon with badge */}
+              <Link
+                href="/notifications"
+                className="relative p-1.5 text-gray-600 hover:text-primary transition"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* User dropdown */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDropdownOpen(false)
+                    setUserMenuOpen(!userMenuOpen)
+                  }}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
+                >
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {(user.name || 'C').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 hidden sm:inline max-w-[120px] truncate">
+                    {user.name || 'Customer'}
+                  </span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-gray-400 shrink-0 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {userMenuOpen && (
+                  <div
+                    className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[200px] z-50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <UserCircle className="h-4 w-4 text-gray-400" />
+                      Profile
+                    </Link>
+                    <Link
+                      href="/addresses"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <MapPinned className="h-4 w-4 text-gray-400" />
+                      Addresses
+                    </Link>
+                    <Link
+                      href="/favorites"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <Heart className="h-4 w-4 text-gray-400" />
+                      Favorites
+                    </Link>
+                    <Link
+                      href="/notifications"
+                      className="flex items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Bell className="h-4 w-4 text-gray-400" />
+                        Notifications
+                      </span>
+                      {unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </Link>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        handleLogout()
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <Button size="sm" asChild>
