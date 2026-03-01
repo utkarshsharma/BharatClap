@@ -27,6 +27,8 @@ export interface SelectedAddress {
   label: string;
   city: string;
   pincode: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface AuthState {
@@ -111,7 +113,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (addr) {
       SecureStore.setItemAsync(KEYS.SELECTED_ADDRESS, JSON.stringify(addr));
       SecureStore.setItemAsync(KEYS.CITY, addr.city);
-      set({ selectedAddress: addr, city: addr.city });
+      const updates: Partial<AuthState> = { selectedAddress: addr, city: addr.city };
+      if (addr.lat && addr.lng) {
+        updates.lat = addr.lat;
+        updates.lng = addr.lng;
+        SecureStore.setItemAsync(KEYS.LAT, String(addr.lat));
+        SecureStore.setItemAsync(KEYS.LNG, String(addr.lng));
+      }
+      set(updates as any);
     } else {
       SecureStore.deleteItemAsync(KEYS.SELECTED_ADDRESS);
       set({ selectedAddress: null, city: DEFAULT_CITY });

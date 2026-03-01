@@ -73,7 +73,7 @@ export default function SearchScreen() {
         return [query.trim(), ...filtered].slice(0, 10);
       });
     }
-    router.push(`/(customer)/service/${service.slug}` as any);
+    router.push(`/(customer)/providers?serviceId=${service.id}&serviceName=${encodeURIComponent(service.name)}&serviceSlug=${service.slug}&servicePrice=${service.basePrice}` as any);
   };
 
   return (

@@ -47,8 +47,8 @@ function toApiAddress(data: CreateAddressData) {
     landmark: data.line2 || undefined,
     city: data.city,
     pincode: data.pincode,
-    latitude: data.lat ?? 0,
-    longitude: data.lng ?? 0,
+    ...(data.lat ? { latitude: data.lat } : {}),
+    ...(data.lng ? { longitude: data.lng } : {}),
   };
 }
 

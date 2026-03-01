@@ -464,7 +464,7 @@ export class ProvidersService {
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const whereClause: Prisma.ProviderProfileWhereInput = {
+    const whereClause = {
       providerServices: {
         some: {
           serviceId: query.serviceId,
@@ -473,6 +473,9 @@ export class ProvidersService {
       },
       user: {
         isActive: true,
+        ...(query.city
+          ? { city: { equals: query.city, mode: 'insensitive' as const } }
+          : {}),
       },
     };
 

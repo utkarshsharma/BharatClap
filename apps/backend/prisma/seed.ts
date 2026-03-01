@@ -229,7 +229,7 @@ async function main() {
           aadhaarLast4: verified ? String(1000 + i * 111).slice(0, 4) : null,
           baseLatitude: coords.lat + (Math.random() - 0.5) * 0.1,
           baseLongitude: coords.lng + (Math.random() - 0.5) * 0.1,
-          serviceRadiusKm: [5, 10, 15, 20][i % 4],
+          serviceRadiusKm: [10, 15, 20, 25][i % 4],
           avgRating: Math.round(rating * 10) / 10,
           avgPunctuality: Math.round((rating + (Math.random() - 0.5) * 0.5) * 10) / 10,
           avgQuality: Math.round((rating + (Math.random() - 0.5) * 0.3) * 10) / 10,

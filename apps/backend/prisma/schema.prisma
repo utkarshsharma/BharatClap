@@ -111,7 +111,7 @@ model ProviderProfile {
   aadhaarLast4    String?  @map("aadhaar_last4") @db.VarChar(4)
   baseLatitude    Float?   @map("base_latitude")
   baseLongitude   Float?   @map("base_longitude")
-  serviceRadiusKm Int      @default(10) @map("service_radius_km")
+  serviceRadiusKm Int      @default(25) @map("service_radius_km")
   avgRating       Float    @default(0) @map("avg_rating")
   avgPunctuality  Float    @default(0) @map("avg_punctuality")
   avgQuality      Float    @default(0) @map("avg_quality")

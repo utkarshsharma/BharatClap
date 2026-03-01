@@ -191,13 +191,19 @@ export default function ProviderProfileScreen() {
   /* Navigate to booking flow */
   const handleBookNow = () => {
     if (!provider) return;
+    const selectedSvc = useBookingStore.getState().selectedService;
+    const matchedSvc = provider.providerServices?.find(
+      (ps) => ps.service.id === selectedSvc?.id
+    );
     setSelectedProvider({
       id: provider.id,
       name: provider.user.name,
+      city: provider.city,
       rating: provider.avgRating,
       reviewCount: reviewTotal,
+      customPrice: matchedSvc?.customPrice ?? undefined,
     });
-    router.push("/(customer)/booking/schedule" as any);
+    router.push("/(customer)/booking" as any);
   };
 
   const toggleFavorite = async () => {

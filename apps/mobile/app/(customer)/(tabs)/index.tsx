@@ -84,6 +84,8 @@ export default function CustomerHomeScreen() {
           label: defaultAddr.label ?? "Address",
           city: defaultAddr.city,
           pincode: defaultAddr.pincode,
+          lat: defaultAddr.lat,
+          lng: defaultAddr.lng,
         });
       }
     } catch {
@@ -97,6 +99,8 @@ export default function CustomerHomeScreen() {
       label: addr.label ?? "Address",
       city: addr.city,
       pincode: addr.pincode,
+      lat: addr.lat,
+      lng: addr.lng,
     });
     // Update lat/lng from city coords if available
     const coords = CITY_COORDS[addr.city];
@@ -278,7 +282,7 @@ export default function CustomerHomeScreen() {
               contentContainerStyle={{ paddingHorizontal: 20 }}
               renderItem={({ item }: { item: Service }) => (
                 <TouchableOpacity
-                  onPress={() => router.push(`/(customer)/service/${item.slug}` as any)}
+                  onPress={() => router.push(`/(customer)/providers?serviceId=${item.id}&serviceName=${encodeURIComponent(item.name)}&serviceSlug=${item.slug}&servicePrice=${item.basePrice}` as any)}
                   className="mr-3 bg-white rounded-2xl border border-gray-100 p-4"
                   style={{ width: 180 }}
                   activeOpacity={0.7}

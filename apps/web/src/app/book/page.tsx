@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import customerApi from '@/lib/customer-api'
@@ -465,7 +465,9 @@ function BookPageContent() {
 export default function BookPage() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BookPageContent />
+      <Suspense>
+        <BookPageContent />
+      </Suspense>
     </QueryClientProvider>
   )
 }

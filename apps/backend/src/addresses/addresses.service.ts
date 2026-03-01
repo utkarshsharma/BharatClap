@@ -9,6 +9,53 @@ export class AddressesService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Geocode an address string into lat/lng using Google Maps Geocoding API.
+   * Returns { lat, lng } or null if geocoding fails.
+   */
+  private async geocode(addressParts: {
+    addressLine?: string;
+    landmark?: string;
+    city?: string;
+    pincode?: string;
+  }): Promise<{ lat: number; lng: number } | null> {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      this.logger.warn('GOOGLE_MAPS_API_KEY not set — skipping geocode');
+      return null;
+    }
+
+    const parts = [
+      addressParts.addressLine,
+      addressParts.landmark,
+      addressParts.city,
+      addressParts.pincode,
+    ].filter(Boolean);
+
+    const query = encodeURIComponent(parts.join(', ') + ', India');
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${apiKey}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results?.length > 0) {
+        const loc = data.results[0].geometry.location;
+        this.logger.log(`Geocoded "${parts.join(', ')}" → ${loc.lat}, ${loc.lng}`);
+        return { lat: loc.lat, lng: loc.lng };
+      }
+      this.logger.warn(`Geocode returned ${data.status} for "${parts.join(', ')}"`);
+      return null;
+    } catch (err) {
+      this.logger.warn(`Geocode fetch failed: ${err}`);
+      return null;
+    }
+  }
+
+  /** Returns true if coordinates look unset (zero or very close to zero). */
+  private needsGeocode(lat?: number, lng?: number): boolean {
+    return !lat || !lng || (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01);
+  }
+
   async findAll(userId: string) {
     const addresses = await this.prisma.address.findMany({
       where: { userId },
@@ -41,6 +88,20 @@ export class AddressesService {
 
     const isFirstAddress = existingAddresses.length === 0;
 
+    // Auto-geocode if lat/lng are missing or zero
+    if (this.needsGeocode(dto.latitude, dto.longitude)) {
+      const coords = await this.geocode({
+        addressLine: dto.addressLine,
+        landmark: dto.landmark,
+        city: dto.city,
+        pincode: dto.pincode,
+      });
+      if (coords) {
+        dto.latitude = coords.lat;
+        dto.longitude = coords.lng;
+      }
+    }
+
     const address = await this.prisma.address.create({
       data: {
         ...dto,
@@ -55,7 +116,29 @@ export class AddressesService {
   }
 
   async update(userId: string, addressId: string, dto: UpdateAddressDto) {
-    await this.findById(userId, addressId);
+    const existing = await this.findById(userId, addressId);
+
+    // Re-geocode if address text changed or lat/lng are still zero
+    const addressChanged =
+      (dto.addressLine && dto.addressLine !== existing.addressLine) ||
+      (dto.city && dto.city !== existing.city) ||
+      (dto.pincode && dto.pincode !== existing.pincode);
+
+    const latToCheck = dto.latitude ?? existing.latitude ?? undefined;
+    const lngToCheck = dto.longitude ?? existing.longitude ?? undefined;
+
+    if (addressChanged || this.needsGeocode(latToCheck, lngToCheck)) {
+      const coords = await this.geocode({
+        addressLine: dto.addressLine ?? existing.addressLine,
+        landmark: dto.landmark ?? existing.landmark ?? undefined,
+        city: dto.city ?? existing.city,
+        pincode: dto.pincode ?? existing.pincode,
+      });
+      if (coords) {
+        dto.latitude = coords.lat;
+        dto.longitude = coords.lng;
+      }
+    }
 
     const address = await this.prisma.address.update({
       where: { id: addressId },

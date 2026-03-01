@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -211,7 +211,9 @@ function ServicesPageContent() {
 export default function ServicesPage() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ServicesPageContent />
+      <Suspense>
+        <ServicesPageContent />
+      </Suspense>
     </QueryClientProvider>
   )
 }

@@ -13,6 +13,7 @@ interface Provider {
   city?: string;
   rating: number;
   reviewCount: number;
+  customPrice?: number;
 }
 
 interface Address {

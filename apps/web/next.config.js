@@ -2,8 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   typescript: {
-    // React 19 types have known forwardRef JSX element type incompatibilities
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     remotePatterns: [

@@ -62,25 +62,27 @@ export class CreateAddressDto {
   })
   pincode: string;
 
-  @ApiProperty({
-    description: 'Latitude coordinate',
+  @ApiPropertyOptional({
+    description: 'Latitude coordinate (auto-geocoded if not provided)',
     example: 19.076,
     minimum: -90,
     maximum: 90,
   })
+  @IsOptional()
   @IsNumber()
   @Min(-90)
   @Max(90)
-  latitude: number;
+  latitude?: number;
 
-  @ApiProperty({
-    description: 'Longitude coordinate',
+  @ApiPropertyOptional({
+    description: 'Longitude coordinate (auto-geocoded if not provided)',
     example: 72.8777,
     minimum: -180,
     maximum: 180,
   })
+  @IsOptional()
   @IsNumber()
   @Min(-180)
   @Max(180)
-  longitude: number;
+  longitude?: number;
 }

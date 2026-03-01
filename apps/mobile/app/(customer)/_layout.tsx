@@ -9,9 +9,8 @@ export default function CustomerLayout() {
       <Stack.Screen name="service/[slug]" />
       <Stack.Screen name="providers" />
       <Stack.Screen name="provider/[id]" />
-      <Stack.Screen name="booking/schedule" />
-      <Stack.Screen name="booking/address" />
-      <Stack.Screen name="booking/summary" />
+      <Stack.Screen name="booking/index" />
+      <Stack.Screen name="booking/payment" />
       <Stack.Screen name="booking/confirmation" />
       <Stack.Screen name="booking/[id]" />
       <Stack.Screen name="booking/select-provider" />
