@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { RazorpayService } from '../payments/razorpay.service';
+import { PayuService } from '../payments/payu.service';
 import { TwilioService } from '../notifications/twilio.service';
 import { BookingStatus, UserRole, PaymentStatus } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -22,7 +22,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-    private readonly razorpayService: RazorpayService,
+    private readonly payuService: PayuService,
     private readonly twilioService: TwilioService,
   ) {}
 
@@ -188,8 +188,8 @@ export class BookingsService {
 
     return {
       ...booking,
-      razorpayOrderId: null, // Will be created by payment webhook
-      razorpayOrderInfo: {
+      payuTxnId: null, // Will be created when payment is initiated
+      payuOrderInfo: {
         amount: booking.amount,
         currency: 'INR',
         receipt: `booking_${booking.id}`,
@@ -217,9 +217,10 @@ export class BookingsService {
       where.providerId = userId;
     }
 
-    // Filter by status
+    // Filter by status (supports comma-separated values)
     if (status) {
-      where.status = status;
+      const statuses = status.split(',').map((s) => s.trim());
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
 
     // Filter by date range
@@ -509,7 +510,7 @@ export class BookingsService {
       'Booking completed',
     );
 
-    // Trigger Razorpay Route transfer: 80% to provider
+    // Credit 80% payout to provider
     this.processProviderPayout(updatedBooking).catch((err) => {
       this.logger.error(`Failed to process provider payout for booking ${bookingId}: ${err.message}`);
     });
@@ -612,7 +613,7 @@ export class BookingsService {
   }
 
   /**
-   * Dev-mode: confirm booking with mock payment (bypasses Razorpay)
+   * Dev-mode: confirm booking with mock payment (bypasses PayU)
    */
   async devConfirm(bookingId: string) {
     const nodeEnv = this.configService.get<string>('app.nodeEnv') || process.env.NODE_ENV;
@@ -641,8 +642,8 @@ export class BookingsService {
         amount: booking.amount,
         currency: 'INR',
         status: PaymentStatus.CAPTURED,
-        razorpayOrderId: `dev_order_${Date.now()}`,
-        razorpayPaymentId: `dev_pay_${Date.now()}`,
+        payuTxnId: `dev_txn_${Date.now()}`,
+        payuMihpayId: `dev_mihpay_${Date.now()}`,
       },
     });
 
@@ -709,7 +710,7 @@ export class BookingsService {
       where: { bookingId },
     });
 
-    if (!payment || payment.status !== PaymentStatus.CAPTURED || !payment.razorpayPaymentId) {
+    if (!payment || payment.status !== PaymentStatus.CAPTURED || !payment.payuMihpayId) {
       this.logger.warn(`Cannot refund booking ${bookingId}: no captured payment`);
       return;
     }
@@ -717,8 +718,8 @@ export class BookingsService {
     const refundAmount = Math.floor(payment.amount * (refundPercentage / 100));
 
     try {
-      const refund = await this.razorpayService.initiateRefund(
-        payment.razorpayPaymentId,
+      const refund = await this.payuService.initiateRefund(
+        payment.payuMihpayId,
         refundAmount,
       );
 
@@ -743,8 +744,8 @@ export class BookingsService {
   }
 
   /**
-   * Process provider payout after booking completion
-   * Transfers 80% of payment to provider's Razorpay linked account
+   * Process provider payout after booking completion.
+   * Credits 80% of payment to provider's wallet balance.
    */
   private async processProviderPayout(booking: any) {
     if (!booking.payment || booking.payment.status !== PaymentStatus.CAPTURED) {
@@ -755,36 +756,13 @@ export class BookingsService {
     const payment = booking.payment;
     const providerPayout = payment.providerPayout || Math.floor(payment.amount * 0.8);
 
-    // Get provider's Razorpay linked account ID
-    const providerProfile = await this.prisma.providerProfile.findUnique({
-      where: { userId: booking.providerId },
+    // Update payment payout status
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { payoutStatus: 'COMPLETED' as any },
     });
 
-    if (!providerProfile) {
-      this.logger.warn(`No provider profile for ${booking.providerId}, skipping payout`);
-      return;
-    }
-
-    // Attempt Razorpay Route transfer if provider has a linked account
-    if (providerProfile.razorpayAccountId && payment.razorpayPaymentId) {
-      try {
-        await this.razorpayService.createTransfer(
-          payment.razorpayPaymentId,
-          providerPayout,
-          providerProfile.razorpayAccountId,
-        );
-
-        // Update payment payout status
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: { payoutStatus: 'COMPLETED' as any },
-        });
-      } catch (err: any) {
-        this.logger.error(`Razorpay transfer failed: ${err.message}`);
-      }
-    }
-
-    // Credit provider wallet balance regardless of Razorpay transfer
+    // Credit provider wallet balance
     await this.prisma.providerProfile.update({
       where: { userId: booking.providerId },
       data: {

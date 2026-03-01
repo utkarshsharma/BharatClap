@@ -1,5 +1,5 @@
 import "../../../global.css";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,32 +11,88 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { WebView } from "react-native-webview";
 import { paymentService } from "@/services/payments";
-import { useAuthStore } from "@/store/authStore";
+import { bookingService } from "@/services/bookings";
+
+const POLL_INTERVAL_MS = 3000;
 
 export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     bookingId: string;
-    orderId: string;
     amount: string;
   }>();
 
-  const phone = useAuthStore((s) => s.user?.phone) ?? "";
-  const [keyId, setKeyId] = useState<string | null>(null);
+  const [checkoutHtml, setCheckoutHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [resolved, setResolved] = useState(false);
   const webViewRef = useRef<WebView>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    loadConfig();
+    initPayment();
+    return () => stopPolling();
   }, []);
 
-  const loadConfig = async () => {
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const startPolling = useCallback(() => {
+    if (pollRef.current || resolved) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const result = await paymentService.checkPaymentStatus(params.bookingId);
+        if (result.captured) {
+          stopPolling();
+          setResolved(true);
+          router.replace(
+            `/(customer)/booking/confirmation?bookingId=${params.bookingId}` as any
+          );
+        } else if (result.status === "FAILED") {
+          stopPolling();
+          setResolved(true);
+          Alert.alert("Payment Failed", "Your payment was not successful.", [
+            { text: "Go Back", onPress: () => router.back() },
+          ]);
+        }
+      } catch {
+        // Polling error — ignore and retry next interval
+      }
+    }, POLL_INTERVAL_MS);
+  }, [params.bookingId, resolved]);
+
+  const initPayment = async () => {
+    // In dev/test mode, use dev-confirm to skip PayU entirely
     try {
       const config = await paymentService.getPaymentConfig();
-      setKeyId(config.keyId);
+      if (config.gateway === "payu_test_auto") {
+        // Dev mode: instant confirmation without PayU
+        await bookingService.devConfirmBooking(params.bookingId);
+        setResolved(true);
+        setLoading(false);
+        router.replace(
+          `/(customer)/booking/confirmation?bookingId=${params.bookingId}` as any
+        );
+        return;
+      }
     } catch {
-      Alert.alert("Error", "Failed to load payment configuration.");
+      // Config fetch failed — continue with normal flow
+    }
+
+    // Production: show PayU WebView checkout
+    try {
+      const result = await paymentService.createPaymentOrder(params.bookingId);
+      setCheckoutHtml(result.html);
+      startPolling();
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ?? error?.message ?? "Failed to initiate payment.";
+      Alert.alert("Error", Array.isArray(msg) ? msg.join("\n") : msg);
       router.back();
     } finally {
       setLoading(false);
@@ -44,141 +100,76 @@ export default function PaymentScreen() {
   };
 
   const handleMessage = async (event: { nativeEvent: { data: string } }) => {
+    if (resolved) return;
     try {
-      const data = JSON.parse(event.nativeEvent.data);
+      const message = JSON.parse(event.nativeEvent.data);
 
-      if (data.type === "payment_success") {
-        setVerifying(true);
-        try {
-          await paymentService.verifyPayment(params.bookingId, {
-            razorpay_order_id: data.razorpay_order_id,
-            razorpay_payment_id: data.razorpay_payment_id,
-            razorpay_signature: data.razorpay_signature,
-          });
-          router.replace(
-            `/(customer)/booking/confirmation?bookingId=${params.bookingId}` as any
-          );
-        } catch {
-          Alert.alert(
-            "Verification Failed",
-            "Payment was received but verification failed. Please contact support.",
-            [
+      if (message.type === "payu_response") {
+        const data = message.data;
+        stopPolling();
+
+        if (data.status === "success") {
+          setVerifying(true);
+          try {
+            await paymentService.verifyPayment(params.bookingId, {
+              mihpayid: data.mihpayid,
+              txnid: data.txnid,
+              status: data.status,
+              hash: data.hash,
+              amount: data.amount,
+              productinfo: data.productinfo,
+              firstname: data.firstname,
+              email: data.email,
+              error_Message: data.error_Message,
+              udf1: data.udf1,
+            });
+            setResolved(true);
+            router.replace(
+              `/(customer)/booking/confirmation?bookingId=${params.bookingId}` as any
+            );
+          } catch {
+            Alert.alert("Verification Failed", "Please contact support.", [
               {
                 text: "OK",
-                onPress: () =>
+                onPress: () => {
+                  setResolved(true);
                   router.replace(
                     `/(customer)/booking/confirmation?bookingId=${params.bookingId}` as any
-                  ),
+                  );
+                },
+              },
+            ]);
+          } finally {
+            setVerifying(false);
+          }
+        } else {
+          setResolved(true);
+          Alert.alert(
+            "Payment Failed",
+            data.error_Message || "Payment was not successful.",
+            [
+              { text: "Go Back", style: "cancel", onPress: () => router.back() },
+              {
+                text: "Retry",
+                onPress: () => {
+                  setResolved(false);
+                  initPayment();
+                },
               },
             ]
           );
-        } finally {
-          setVerifying(false);
         }
-      } else if (data.type === "payment_dismissed") {
-        Alert.alert("Payment Cancelled", "Would you like to retry payment?", [
-          { text: "Go Back", style: "cancel", onPress: () => router.back() },
-          { text: "Retry", onPress: () => webViewRef.current?.reload() },
-        ]);
       }
     } catch {
       // Ignore non-JSON messages
     }
   };
 
-  const amountInPaise = Number(params.amount) || 0;
-  const amountDisplay = (amountInPaise / 100).toFixed(2);
-
-  const checkoutHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      margin: 0;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    }
-    .loading {
-      text-align: center;
-      color: #666;
-      font-size: 16px;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid #eee;
-      border-top-color: #FF6B00;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 16px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <div class="loading">
-    <div class="spinner"></div>
-    <p>Opening Razorpay checkout...</p>
-  </div>
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <script>
-    var options = {
-      key: '${keyId}',
-      amount: ${amountInPaise},
-      currency: 'INR',
-      name: 'BharatClap',
-      description: 'Service Booking Payment',
-      order_id: '${params.orderId}',
-      handler: function(response) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'payment_success',
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature: response.razorpay_signature,
-        }));
-      },
-      modal: {
-        ondismiss: function() {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'payment_dismissed',
-          }));
-        },
-        escape: false,
-      },
-      prefill: {
-        contact: '${phone}',
-      },
-      theme: {
-        color: '#FF6B00',
-      },
-    };
-    var rzp = new Razorpay(options);
-    rzp.on('payment.failed', function(response) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'payment_dismissed',
-        error: response.error.description,
-      }));
-    });
-    rzp.open();
-  </script>
-</body>
-</html>
-  `;
-
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-white items-center justify-center">
         <ActivityIndicator size="large" color="#FF6B00" />
-        <Text className="text-sm text-gray-500 mt-3">
-          Preparing payment...
-        </Text>
+        <Text className="text-sm text-gray-500 mt-3">Preparing payment...</Text>
       </SafeAreaView>
     );
   }
@@ -201,13 +192,13 @@ export default function PaymentScreen() {
     <SafeAreaView className="flex-1 bg-white">
       {/* Header */}
       <View className="flex-row items-center px-4 pt-3 pb-3 border-b border-gray-100">
-        <TouchableOpacity onPress={() => router.back()} className="p-2 mr-2">
+        <TouchableOpacity onPress={() => { stopPolling(); router.back(); }} className="p-2 mr-2">
           <Text className="text-2xl text-secondary">{"\u2190"}</Text>
         </TouchableOpacity>
         <Text className="text-xl font-bold text-secondary">Payment</Text>
       </View>
 
-      {keyId ? (
+      {checkoutHtml ? (
         <WebView
           ref={webViewRef}
           source={{ html: checkoutHtml }}
@@ -228,7 +219,7 @@ export default function PaymentScreen() {
             Payment Unavailable
           </Text>
           <Text className="text-sm text-gray-500 text-center mb-6">
-            Unable to load payment configuration. Please try again.
+            Unable to load payment gateway. Please try again.
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}

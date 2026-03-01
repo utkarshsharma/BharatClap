@@ -25,7 +25,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     question: "What payment methods are accepted?",
     answer:
-      "BharatClap supports multiple payment methods including UPI (Google Pay, PhonePe, Paytm), credit/debit cards, net banking, and Razorpay wallet. All payments are processed securely through Razorpay payment gateway.",
+      "BharatClap supports multiple payment methods including UPI (Google Pay, PhonePe, Paytm), credit/debit cards, net banking, and wallets. All payments are processed securely through PayU payment gateway.",
   },
   {
     question: "What is the cancellation policy?",

@@ -1,4 +1,5 @@
 import api from './api';
+import { CONFIG } from '@/constants/config';
 
 export interface Payment {
   id: string;
@@ -11,16 +12,23 @@ export interface Payment {
   updatedAt: string;
 }
 
-export interface PaymentOrder {
-  orderId: string;
+export interface PaymentInitiation {
+  html: string;
+  txnid: string;
   amount: number;
-  currency: string;
 }
 
-export interface PaymentVerifyData {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
+export interface PayuVerifyData {
+  mihpayid: string;
+  txnid: string;
+  status: string;
+  hash: string;
+  amount: string;
+  productinfo: string;
+  firstname: string;
+  email: string;
+  error_Message?: string;
+  udf1?: string;
 }
 
 export const paymentService = {
@@ -29,20 +37,34 @@ export const paymentService = {
     return response.data;
   },
 
-  createPaymentOrder: async (bookingId: string): Promise<PaymentOrder> => {
-    const response = await api.post(`/payments/${bookingId}/order`);
+  createPaymentOrder: async (bookingId: string): Promise<PaymentInitiation> => {
+    const response = await api.post(`/payments/${bookingId}/order`, {
+      callbackBaseUrl: CONFIG.API_URL,
+    });
+    return response.data;
+  },
+
+  autoPayTestMode: async (bookingId: string): Promise<{ autoPaid: boolean; status: string; bookingId: string }> => {
+    const response = await api.post(`/payments/${bookingId}/order`, {
+      autoPayTest: true,
+    });
     return response.data;
   },
 
   verifyPayment: async (
     bookingId: string,
-    data: PaymentVerifyData,
+    data: PayuVerifyData,
   ): Promise<{ verified: boolean; status: string }> => {
     const response = await api.post(`/payments/${bookingId}/verify`, data);
     return response.data;
   },
 
-  getPaymentConfig: async (): Promise<{ keyId: string }> => {
+  checkPaymentStatus: async (bookingId: string): Promise<{ status: string; captured: boolean }> => {
+    const response = await api.get(`/payments/${bookingId}/status`);
+    return response.data;
+  },
+
+  getPaymentConfig: async (): Promise<{ merchantKey: string; gateway: string }> => {
     const response = await api.get('/payments/config');
     return response.data;
   },

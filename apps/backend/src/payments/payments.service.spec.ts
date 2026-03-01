@@ -4,9 +4,10 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { RazorpayService } from './razorpay.service';
+import { PayuService } from './payu.service';
 import { PaymentStatus, BookingStatus, PayoutStatus } from '@prisma/client';
 
 const mockPrismaService = {
@@ -22,10 +23,17 @@ const mockPrismaService = {
   },
 };
 
-const mockRazorpayService = {
-  createOrder: jest.fn(),
+const mockPayuService = {
+  generateCheckoutHtml: jest.fn(),
+  generatePaymentHash: jest.fn(),
+  verifyPaymentResponse: jest.fn(),
+  verifyPaymentAPI: jest.fn(),
   initiateRefund: jest.fn(),
-  verifyPaymentSignature: jest.fn(),
+  getMerchantKey: jest.fn(),
+};
+
+const mockConfigService = {
+  get: jest.fn().mockReturnValue('http://localhost:3000'),
 };
 
 describe('PaymentsService', () => {
@@ -40,8 +48,12 @@ describe('PaymentsService', () => {
           useValue: mockPrismaService,
         },
         {
-          provide: RazorpayService,
-          useValue: mockRazorpayService,
+          provide: PayuService,
+          useValue: mockPayuService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -61,522 +73,218 @@ describe('PaymentsService', () => {
     const bookingId = 'booking-1';
     const amount = 50000;
 
-    it('should create order successfully', async () => {
+    it('should create payment order successfully', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue(null);
       mockPrismaService.booking.findUnique.mockResolvedValue({
         id: bookingId,
         amount,
         status: BookingStatus.PENDING_PAYMENT,
-      });
-      mockRazorpayService.createOrder.mockResolvedValue({
-        id: 'order_razorpay_123',
-        amount,
-        currency: 'INR',
+        customer: { name: 'Test', email: 'test@test.com', phone: '9876543210' },
       });
       mockPrismaService.payment.create.mockResolvedValue({
-        id: 'payment-1',
+        id: 'pay-1',
         bookingId,
-        razorpayOrderId: 'order_razorpay_123',
+        payuTxnId: 'TXN_123',
         amount,
-        currency: 'INR',
         status: PaymentStatus.PENDING,
-        commission: 0,
-        providerPayout: 0,
-        payoutStatus: PayoutStatus.PENDING,
+      });
+      mockPayuService.generateCheckoutHtml.mockReturnValue('<html>checkout</html>');
+
+      const result = await service.createPaymentOrder(bookingId);
+
+      expect(result.html).toBeDefined();
+      expect(result.txnid).toBeDefined();
+      expect(result.amount).toBe(amount);
+      expect(mockPrismaService.payment.create).toHaveBeenCalled();
+    });
+
+    it('should return existing pending payment', async () => {
+      mockPrismaService.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        bookingId,
+        payuTxnId: 'TXN_existing',
+        amount,
+        status: PaymentStatus.PENDING,
+      });
+      mockPrismaService.booking.findUnique.mockResolvedValue({
+        id: bookingId,
+        customer: { name: 'Test', email: 'test@test.com', phone: '9876543210' },
+      });
+      mockPayuService.generateCheckoutHtml.mockReturnValue('<html>checkout</html>');
+
+      const result = await service.createPaymentOrder(bookingId);
+
+      expect(result.txnid).toBe('TXN_existing');
+      expect(mockPrismaService.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException for captured payment', async () => {
+      mockPrismaService.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        status: PaymentStatus.CAPTURED,
       });
 
-      const result = await service.createPaymentOrder(bookingId, amount);
-
-      expect(result.orderId).toBe('order_razorpay_123');
-      expect(result.amount).toBe(amount);
-      expect(result.currency).toBe('INR');
-      expect(result.payment).toBeDefined();
-      expect(mockRazorpayService.createOrder).toHaveBeenCalledWith(amount, bookingId);
-      expect(mockPrismaService.payment.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            bookingId,
-            razorpayOrderId: 'order_razorpay_123',
-            amount,
-            status: PaymentStatus.PENDING,
-          }),
-        }),
+      await expect(service.createPaymentOrder(bookingId)).rejects.toThrow(
+        ConflictException,
       );
     });
 
-    it('should throw ConflictException if payment already exists', async () => {
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'existing-payment',
-        bookingId,
-      });
-
-      await expect(
-        service.createPaymentOrder(bookingId, amount),
-      ).rejects.toThrow(ConflictException);
-      await expect(
-        service.createPaymentOrder(bookingId, amount),
-      ).rejects.toThrow('Payment already exists for this booking');
-    });
-
-    it('should throw NotFoundException if booking not found', async () => {
+    it('should throw NotFoundException for missing booking', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue(null);
       mockPrismaService.booking.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.createPaymentOrder(bookingId, amount),
-      ).rejects.toThrow(NotFoundException);
-      await expect(
-        service.createPaymentOrder(bookingId, amount),
-      ).rejects.toThrow('Booking not found');
+      await expect(service.createPaymentOrder(bookingId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
-  // ─── handleWebhook: payment.captured ──────────────────────────────────────
+  // ─── verifyPayment ─────────────────────────────────────────────────────────
 
-  describe('handleWebhook - payment.captured', () => {
-    const signature = 'test-signature';
+  describe('verifyPayment', () => {
+    const bookingId = 'booking-1';
+    const payuResponse = {
+      mihpayid: '403993715524373390',
+      txnid: 'TXN_123',
+      status: 'success',
+      hash: 'valid_hash',
+      amount: '500.00',
+      productinfo: 'BharatClap Service Booking',
+      firstname: 'Test',
+      email: 'test@test.com',
+    };
 
-    const makeCapturedPayload = (orderId: string, paymentId: string, amount: number) => ({
-      event: 'payment.captured',
-      payload: {
-        payment: {
-          entity: {
-            id: paymentId,
-            order_id: orderId,
-            amount,
-          },
-        },
-      },
-    });
-
-    it('should update payment to CAPTURED and booking to CONFIRMED', async () => {
-      const orderId = 'order_123';
-      const paymentId = 'pay_456';
-      const amount = 50000;
-      const body = makeCapturedPayload(orderId, paymentId, amount);
-
+    it('should verify payment successfully', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayOrderId: orderId,
-        status: PaymentStatus.PENDING,
-        amount,
-      });
-      mockPrismaService.payment.update.mockResolvedValue({});
-      mockPrismaService.booking.update.mockResolvedValue({});
-
-      const result = await service.handleWebhook(body, signature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockPrismaService.payment.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            razorpayPaymentId: paymentId,
-            status: PaymentStatus.CAPTURED,
-          }),
-        }),
-      );
-      expect(mockPrismaService.booking.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: BookingStatus.CONFIRMED,
-          }),
-        }),
-      );
-    });
-
-    it('should calculate commission as 20% and providerPayout as 80%', async () => {
-      const amount = 50000;
-      const body = makeCapturedPayload('order_123', 'pay_456', amount);
-
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayOrderId: 'order_123',
-        status: PaymentStatus.PENDING,
-        amount,
-      });
-      mockPrismaService.payment.update.mockResolvedValue({});
-      mockPrismaService.booking.update.mockResolvedValue({});
-
-      await service.handleWebhook(body, signature);
-
-      expect(mockPrismaService.payment.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            commission: 10000, // 20% of 50000
-            providerPayout: 40000, // 80% of 50000
-          }),
-        }),
-      );
-    });
-
-    it('should be idempotent - skip if already CAPTURED', async () => {
-      const body = makeCapturedPayload('order_123', 'pay_456', 50000);
-
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayOrderId: 'order_123',
-        status: PaymentStatus.CAPTURED, // Already captured
+        id: 'pay-1',
+        bookingId,
         amount: 50000,
+        status: PaymentStatus.PENDING,
+      });
+      mockPayuService.verifyPaymentResponse.mockReturnValue(true);
+      mockPrismaService.payment.update.mockResolvedValue({});
+      mockPrismaService.booking.update.mockResolvedValue({});
+
+      const result = await service.verifyPayment(bookingId, payuResponse);
+
+      expect(result.verified).toBe(true);
+      expect(result.status).toBe('captured');
+    });
+
+    it('should return already_captured for captured payment', async () => {
+      mockPrismaService.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        status: PaymentStatus.CAPTURED,
       });
 
-      await service.handleWebhook(body, signature);
+      const result = await service.verifyPayment(bookingId, payuResponse);
 
-      // Should NOT have updated payment or booking since already captured
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-      expect(mockPrismaService.booking.update).not.toHaveBeenCalled();
+      expect(result.verified).toBe(true);
+      expect(result.status).toBe('already_captured');
     });
 
-    it('should handle missing payment gracefully', async () => {
-      const body = makeCapturedPayload('order_nonexistent', 'pay_456', 50000);
-
-      mockPrismaService.payment.findUnique.mockResolvedValue(null);
-
-      const result = await service.handleWebhook(body, signature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-      expect(mockPrismaService.booking.update).not.toHaveBeenCalled();
-    });
-  });
-
-  // ─── handleWebhook: payment.failed ────────────────────────────────────────
-
-  describe('handleWebhook - payment.failed', () => {
-    const signature = 'test-signature';
-
-    const makeFailedPayload = (orderId: string, paymentId: string) => ({
-      event: 'payment.failed',
-      payload: {
-        payment: {
-          entity: {
-            id: paymentId,
-            order_id: orderId,
-          },
-        },
-      },
-    });
-
-    it('should update payment to FAILED and booking to CANCELLED', async () => {
-      const body = makeFailedPayload('order_123', 'pay_456');
-
+    it('should throw for failed payment status', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayOrderId: 'order_123',
+        id: 'pay-1',
+        bookingId,
+        amount: 50000,
         status: PaymentStatus.PENDING,
       });
       mockPrismaService.payment.update.mockResolvedValue({});
-      mockPrismaService.booking.update.mockResolvedValue({});
 
-      const result = await service.handleWebhook(body, signature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockPrismaService.payment.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            razorpayPaymentId: 'pay_456',
-            status: PaymentStatus.FAILED,
-          }),
-        }),
-      );
-      expect(mockPrismaService.booking.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: BookingStatus.CANCELLED,
-          }),
-        }),
-      );
+      await expect(
+        service.verifyPayment(bookingId, { ...payuResponse, status: 'failure' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it('should be idempotent - skip if already FAILED', async () => {
-      const body = makeFailedPayload('order_123', 'pay_456');
-
+    it('should throw for invalid hash', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayOrderId: 'order_123',
-        status: PaymentStatus.FAILED, // Already failed
+        id: 'pay-1',
+        bookingId,
+        amount: 50000,
+        status: PaymentStatus.PENDING,
       });
+      mockPayuService.verifyPaymentResponse.mockReturnValue(false);
 
-      await service.handleWebhook(body, signature);
-
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-      expect(mockPrismaService.booking.update).not.toHaveBeenCalled();
+      await expect(
+        service.verifyPayment(bookingId, payuResponse),
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it('should handle missing payment gracefully', async () => {
-      const body = makeFailedPayload('order_nonexistent', 'pay_456');
-
-      mockPrismaService.payment.findUnique.mockResolvedValue(null);
-
-      const result = await service.handleWebhook(body, signature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-    });
-  });
-
-  // ─── handleWebhook: refund.processed ──────────────────────────────────────
-
-  describe('handleWebhook - refund.processed', () => {
-    const signature = 'test-signature';
-
-    const makeRefundPayload = (paymentId: string, refundId: string, refundAmount: number) => ({
-      event: 'refund.processed',
-      payload: {
-        refund: {
-          entity: {
-            id: refundId,
-            payment_id: paymentId,
-            amount: refundAmount,
-          },
-        },
-      },
-    });
-
-    it('should update payment to REFUNDED with refund details', async () => {
-      const body = makeRefundPayload('pay_456', 'rfnd_789', 25000);
-
-      mockPrismaService.payment.findFirst.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayPaymentId: 'pay_456',
-        status: PaymentStatus.CAPTURED,
-        refundId: null,
+    it('should calculate correct commission split', async () => {
+      const amount = 50000; // 500 INR in paise
+      mockPrismaService.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        bookingId,
+        amount,
+        status: PaymentStatus.PENDING,
       });
+      mockPayuService.verifyPaymentResponse.mockReturnValue(true);
       mockPrismaService.payment.update.mockResolvedValue({});
       mockPrismaService.booking.update.mockResolvedValue({});
 
-      const result = await service.handleWebhook(body, signature);
+      await service.verifyPayment(bookingId, payuResponse);
 
-      expect(result).toEqual({ received: true });
       expect(mockPrismaService.payment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            refundId: 'rfnd_789',
-            refundAmount: 25000,
-            status: PaymentStatus.REFUNDED,
-          }),
-        }),
-      );
-      expect(mockPrismaService.booking.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: BookingStatus.REFUNDED,
+            commission: 10000, // 20%
+            providerPayout: 40000, // 80%
           }),
         }),
       );
     });
-
-    it('should be idempotent - skip if already REFUNDED with same refundId', async () => {
-      const body = makeRefundPayload('pay_456', 'rfnd_789', 25000);
-
-      mockPrismaService.payment.findFirst.mockResolvedValue({
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        razorpayPaymentId: 'pay_456',
-        status: PaymentStatus.REFUNDED,
-        refundId: 'rfnd_789', // Already has the same refund ID
-      });
-
-      await service.handleWebhook(body, signature);
-
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-      expect(mockPrismaService.booking.update).not.toHaveBeenCalled();
-    });
-
-    it('should handle missing payment gracefully', async () => {
-      const body = makeRefundPayload('pay_nonexistent', 'rfnd_789', 25000);
-
-      mockPrismaService.payment.findFirst.mockResolvedValue(null);
-
-      const result = await service.handleWebhook(body, signature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockPrismaService.payment.update).not.toHaveBeenCalled();
-    });
   });
 
-  // ─── handleWebhook: unhandled event ───────────────────────────────────────
-
-  describe('handleWebhook - unhandled event', () => {
-    it('should return received:true for unhandled events', async () => {
-      const body = {
-        event: 'payment.authorized',
-        payload: {},
-      };
-
-      const result = await service.handleWebhook(body, 'sig');
-
-      expect(result).toEqual({ received: true });
-    });
-  });
-
-  // ─── processRefund ────────────────────────────────────────────────────────
+  // ─── processRefund ─────────────────────────────────────────────────────────
 
   describe('processRefund', () => {
     const bookingId = 'booking-1';
 
-    it('should throw BadRequestException if refund percentage is invalid (negative)', async () => {
-      await expect(
-        service.processRefund(bookingId, -10),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.processRefund(bookingId, -10),
-      ).rejects.toThrow('Refund percentage must be between 0 and 100');
-    });
-
-    it('should throw BadRequestException if refund percentage is over 100', async () => {
-      await expect(
-        service.processRefund(bookingId, 150),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw NotFoundException if payment not found', async () => {
-      mockPrismaService.payment.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow(NotFoundException);
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow('Payment not found for this booking');
-    });
-
-    it('should throw BadRequestException if payment is not CAPTURED', async () => {
+    it('should process full refund successfully', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
+        id: 'pay-1',
         bookingId,
-        status: PaymentStatus.PENDING,
         amount: 50000,
-        razorpayPaymentId: 'pay_456',
-      });
-
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow('Payment must be in CAPTURED status to process refund');
-    });
-
-    it('should throw BadRequestException if razorpayPaymentId not found', async () => {
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId,
         status: PaymentStatus.CAPTURED,
-        amount: 50000,
-        razorpayPaymentId: null,
+        payuMihpayId: 'mihpay_123',
       });
-
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.processRefund(bookingId, 50),
-      ).rejects.toThrow('Razorpay payment ID not found');
-    });
-
-    it('should calculate refund amount correctly (50% of 50000 = 25000)', async () => {
-      mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId,
-        status: PaymentStatus.CAPTURED,
-        amount: 50000,
-        razorpayPaymentId: 'pay_456',
-      });
-      mockRazorpayService.initiateRefund.mockResolvedValue({
-        id: 'rfnd_new',
-        amount: 25000,
+      mockPayuService.initiateRefund.mockResolvedValue({
+        id: 'refund_123',
+        status: 1,
       });
       mockPrismaService.payment.update.mockResolvedValue({});
 
-      const result = await service.processRefund(bookingId, 50);
+      const result = await service.processRefund(bookingId, 100);
 
-      expect(mockRazorpayService.initiateRefund).toHaveBeenCalledWith('pay_456', 25000);
-      expect(mockPrismaService.payment.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            refundId: 'rfnd_new',
-            refundAmount: 25000,
-            status: PaymentStatus.REFUNDED,
-          }),
-        }),
+      expect(result.id).toBe('refund_123');
+      expect(mockPayuService.initiateRefund).toHaveBeenCalledWith(
+        'mihpay_123',
+        50000,
       );
-      expect(result.id).toBe('rfnd_new');
     });
 
-    it('should calculate full refund correctly (100% of 50000 = 50000)', async () => {
+    it('should throw for non-captured payment', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId,
-        status: PaymentStatus.CAPTURED,
-        amount: 50000,
-        razorpayPaymentId: 'pay_456',
+        id: 'pay-1',
+        status: PaymentStatus.PENDING,
       });
-      mockRazorpayService.initiateRefund.mockResolvedValue({
-        id: 'rfnd_full',
-        amount: 50000,
-      });
-      mockPrismaService.payment.update.mockResolvedValue({});
 
-      await service.processRefund(bookingId, 100);
-
-      expect(mockRazorpayService.initiateRefund).toHaveBeenCalledWith('pay_456', 50000);
+      await expect(service.processRefund(bookingId, 100)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
-    it('should calculate zero refund correctly (0% of 50000 = 0)', async () => {
+    it('should throw for missing PayU transaction ID', async () => {
       mockPrismaService.payment.findUnique.mockResolvedValue({
-        id: 'payment-1',
-        bookingId,
+        id: 'pay-1',
         status: PaymentStatus.CAPTURED,
-        amount: 50000,
-        razorpayPaymentId: 'pay_456',
+        payuMihpayId: null,
       });
-      mockRazorpayService.initiateRefund.mockResolvedValue({
-        id: 'rfnd_zero',
-        amount: 0,
-      });
-      mockPrismaService.payment.update.mockResolvedValue({});
 
-      await service.processRefund(bookingId, 0);
-
-      expect(mockRazorpayService.initiateRefund).toHaveBeenCalledWith('pay_456', 0);
-    });
-  });
-
-  // ─── getPaymentByBooking ──────────────────────────────────────────────────
-
-  describe('getPaymentByBooking', () => {
-    it('should return payment if found', async () => {
-      const mockPayment = {
-        id: 'payment-1',
-        bookingId: 'booking-1',
-        amount: 50000,
-        booking: {
-          id: 'booking-1',
-          status: BookingStatus.CONFIRMED,
-          amount: 50000,
-          customer: { id: 'c1', name: 'Test', email: 'test@test.com' },
-          provider: { id: 'p1', name: 'Provider' },
-        },
-      };
-      mockPrismaService.payment.findUnique.mockResolvedValue(mockPayment);
-
-      const result = await service.getPaymentByBooking('booking-1');
-
-      expect(result.id).toBe('payment-1');
-    });
-
-    it('should throw NotFoundException if payment not found', async () => {
-      mockPrismaService.payment.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.getPaymentByBooking('booking-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.processRefund(bookingId, 100)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

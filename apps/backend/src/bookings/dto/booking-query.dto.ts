@@ -1,17 +1,23 @@
-import { IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { BookingStatus } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class BookingQueryDto extends PaginationDto {
   @ApiPropertyOptional({
-    description: 'Filter by booking status',
-    enum: BookingStatus,
-    example: BookingStatus.CONFIRMED,
+    description: 'Filter by booking status (comma-separated for multiple)',
+    example: 'CONFIRMED,PROVIDER_ASSIGNED,IN_PROGRESS',
   })
   @IsOptional()
-  @IsEnum(BookingStatus)
-  status?: BookingStatus;
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Role filter (customer or provider)',
+    example: 'customer',
+  })
+  @IsOptional()
+  @IsString()
+  role?: string;
 
   @ApiPropertyOptional({
     description: 'Filter bookings from this date (ISO format)',

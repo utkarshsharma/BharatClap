@@ -7,36 +7,42 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { bookingService, type Booking } from "@/services/bookings";
 import { formatDate, formatTime } from "@/utils/format";
 
 type Tab = "upcoming" | "past";
 
-const UPCOMING_STATUSES = "CONFIRMED,PROVIDER_ASSIGNED,IN_PROGRESS";
-const PAST_STATUSES = "COMPLETED,CANCELLED";
+const UPCOMING_STATUSES = "PENDING_PAYMENT,CONFIRMED,PROVIDER_ASSIGNED,IN_PROGRESS";
+const PAST_STATUSES = "COMPLETED,CANCELLED,REFUNDED";
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  PENDING_PAYMENT: { bg: "bg-orange-100", text: "text-orange-700" },
   CONFIRMED: { bg: "bg-blue-100", text: "text-blue-700" },
   PROVIDER_ASSIGNED: { bg: "bg-indigo-100", text: "text-indigo-700" },
   IN_PROGRESS: { bg: "bg-yellow-100", text: "text-yellow-700" },
   COMPLETED: { bg: "bg-green-100", text: "text-green-700" },
   CANCELLED: { bg: "bg-red-100", text: "text-red-700" },
+  REFUNDED: { bg: "bg-gray-100", text: "text-gray-700" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: "Pending Payment",
   CONFIRMED: "Confirmed",
   PROVIDER_ASSIGNED: "Provider Assigned",
   IN_PROGRESS: "In Progress",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
+  REFUNDED: "Refunded",
 };
 
 export default function CustomerBookingsScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
 
   const {

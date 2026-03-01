@@ -114,4 +114,9 @@ export const bookingService = {
     const response = await api.post(`/bookings/${id}/rebook`);
     return response.data;
   },
+
+  devConfirmBooking: async (id: string): Promise<Booking> => {
+    const response = await api.post(`/bookings/${id}/dev-confirm`);
+    return response.data;
+  },
 };

@@ -48,7 +48,7 @@ export default function BookingSummaryScreen() {
         emergencyContactPhone: localEmergency || undefined,
       });
 
-      // 2. Create a Razorpay payment order
+      // 2. Create a PayU payment order
       const order = await paymentService.createPaymentOrder(booking.id);
 
       return { booking, order };

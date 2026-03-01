@@ -353,8 +353,8 @@ async function main() {
     await prisma.payment.create({
       data: {
         bookingId: booking.id,
-        razorpayOrderId: `order_test_${booking.id.slice(0, 8)}`,
-        razorpayPaymentId: booking.status === BookingStatus.CANCELLED ? null : `pay_test_${booking.id.slice(0, 8)}`,
+        payuTxnId: `TXN_test_${booking.id.slice(0, 8)}`,
+        payuMihpayId: booking.status === BookingStatus.CANCELLED ? null : `mihpay_test_${booking.id.slice(0, 8)}`,
         amount: booking.amount,
         status: booking.status === BookingStatus.CANCELLED ? PaymentStatus.REFUNDED : PaymentStatus.CAPTURED,
         commission,

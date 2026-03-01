@@ -15,7 +15,7 @@ PATTERNS=(
   'ghp_[A-Za-z0-9]{36}'               # GitHub personal access tokens
   'PRIVATE KEY-----'                   # Private keys
   'eyJhbGciOi[A-Za-z0-9_-]{50,}'     # JWTs (long base64 strings)
-  'rzp_live_[A-Za-z0-9]{14}'          # Razorpay live keys
+  'rzp_live_[A-Za-z0-9]{14}'          # Razorpay live keys (legacy check)
   'xai-[A-Za-z0-9]{20,}'              # xAI/Grok keys
 )
 

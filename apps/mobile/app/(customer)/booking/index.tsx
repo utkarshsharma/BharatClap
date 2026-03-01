@@ -17,7 +17,6 @@ import { useBookingStore } from "@/store/bookingStore";
 import { useAuthStore } from "@/store/authStore";
 import { addressService, type Address } from "@/services/addresses";
 import { bookingService } from "@/services/bookings";
-import { paymentService } from "@/services/payments";
 import { TIME_SLOTS } from "@/constants/timeSlots";
 import { CONFIG } from "@/constants/config";
 import { formatCurrency, formatRating } from "@/utils/format";
@@ -165,7 +164,7 @@ export default function BookingScreen() {
     router.push("/(customer)/address-form" as any);
   };
 
-  // Booking + payment creation
+  // Booking creation
   const createBookingMutation = useMutation({
     mutationFn: async () => {
       const booking = await bookingService.createBooking({
@@ -177,10 +176,9 @@ export default function BookingScreen() {
         customerNotes: localNotes || undefined,
         emergencyContactPhone: localEmergency || undefined,
       });
-      const order = await paymentService.createPaymentOrder(booking.id);
-      return { booking, order };
+      return { booking };
     },
-    onSuccess: ({ booking, order }) => {
+    onSuccess: ({ booking }) => {
       // Commit to store
       setSelectedDate(localDate);
       setSelectedHour(localHour!);
@@ -198,7 +196,7 @@ export default function BookingScreen() {
       setEmergencyContact(localEmergency);
 
       router.push(
-        `/(customer)/booking/payment?bookingId=${booking.id}&orderId=${order.orderId}&amount=${order.amount}` as any
+        `/(customer)/booking/payment?bookingId=${booking.id}&amount=${booking.amount}` as any
       );
     },
     onError: (error: any) => {

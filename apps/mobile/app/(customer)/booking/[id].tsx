@@ -17,21 +17,23 @@ import { reviewService } from "@/services/reviews";
 import { formatDate, formatTime, formatCurrency } from "@/utils/format";
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  PENDING: { bg: "bg-gray-100", text: "text-gray-700" },
+  PENDING_PAYMENT: { bg: "bg-orange-100", text: "text-orange-700" },
   CONFIRMED: { bg: "bg-blue-100", text: "text-blue-700" },
   PROVIDER_ASSIGNED: { bg: "bg-indigo-100", text: "text-indigo-700" },
   IN_PROGRESS: { bg: "bg-yellow-100", text: "text-yellow-700" },
   COMPLETED: { bg: "bg-green-100", text: "text-green-700" },
   CANCELLED: { bg: "bg-red-100", text: "text-red-700" },
+  REFUNDED: { bg: "bg-gray-100", text: "text-gray-700" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pending",
+  PENDING_PAYMENT: "Pending Payment",
   CONFIRMED: "Confirmed",
   PROVIDER_ASSIGNED: "Provider Assigned",
   IN_PROGRESS: "In Progress",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
+  REFUNDED: "Refunded",
 };
 
 const STATUS_TIMELINE_ORDER = [
@@ -310,7 +312,7 @@ export default function BookingDetailScreen() {
 
         {/* Action Buttons */}
         <View className="mx-5 mb-8">
-          {booking.status === "CONFIRMED" && (
+          {(booking.status === "PENDING_PAYMENT" || booking.status === "CONFIRMED") && (
             <TouchableOpacity
               onPress={handleCancel}
               disabled={cancelMutation.isPending}

@@ -4,18 +4,21 @@ import {
   Post,
   Param,
   Body,
+  Req,
+  Res,
   UseGuards,
+  UsePipes,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
+import { PayuService } from './payu.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -26,7 +29,7 @@ import { Public } from '../common/decorators/public.decorator';
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
-    private readonly configService: ConfigService,
+    private readonly payuService: PayuService,
   ) {}
 
   @Get('config')
@@ -34,59 +37,105 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Get payment gateway configuration' })
   @ApiResponse({ status: 200, description: 'Payment config returned' })
   async getPaymentConfig() {
+    // PAYU_TEST_MODE_AUTO=true  → skip checkout, instant confirm (fast dev iteration)
+    // PAYU_TEST_MODE_AUTO=false → show real PayU checkout (realistic demo/testing)
+    const autoTest =
+      this.payuService.isTestMode() &&
+      (process.env.PAYU_TEST_MODE_AUTO ?? 'true') === 'true';
+
     return {
-      keyId: this.configService.get<string>('app.razorpay.keyId'),
+      merchantKey: this.payuService.getMerchantKey(),
+      gateway: autoTest ? 'payu_test_auto' : 'payu',
     };
   }
 
   @Post(':bookingId/order')
-  @ApiOperation({ summary: 'Create Razorpay payment order for a booking' })
-  @ApiResponse({ status: 201, description: 'Payment order created' })
+  @UsePipes()
+  @ApiOperation({ summary: 'Create PayU payment for a booking' })
+  @ApiResponse({ status: 201, description: 'Payment initiated' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
-  async createOrder(@Param('bookingId') bookingId: string) {
-    return this.paymentsService.createPaymentOrder(bookingId);
+  async createOrder(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { callbackBaseUrl?: string; autoPayTest?: boolean },
+  ) {
+    if (body.autoPayTest && this.payuService.isTestMode()) {
+      return this.paymentsService.autoPayTestMode(bookingId);
+    }
+    return this.paymentsService.createPaymentOrder(bookingId, undefined, body.callbackBaseUrl);
   }
 
   @Post(':bookingId/verify')
-  @ApiOperation({ summary: 'Verify Razorpay payment after checkout' })
+  @ApiOperation({ summary: 'Verify PayU payment after checkout' })
   @ApiResponse({ status: 200, description: 'Payment verified' })
-  @ApiResponse({ status: 400, description: 'Invalid payment signature' })
+  @ApiResponse({ status: 400, description: 'Invalid payment hash' })
   async verifyPayment(
     @Param('bookingId') bookingId: string,
     @Body()
     body: {
-      razorpay_order_id: string;
-      razorpay_payment_id: string;
-      razorpay_signature: string;
+      mihpayid: string;
+      txnid: string;
+      status: string;
+      hash: string;
+      amount: string;
+      productinfo: string;
+      firstname: string;
+      email: string;
+      error_Message?: string;
+      udf1?: string;
     },
   ) {
-    if (
-      !body.razorpay_order_id ||
-      !body.razorpay_payment_id ||
-      !body.razorpay_signature
-    ) {
+    if (!body.mihpayid || !body.txnid || !body.status || !body.hash) {
       throw new BadRequestException(
-        'Missing required fields: razorpay_order_id, razorpay_payment_id, razorpay_signature',
+        'Missing required fields: mihpayid, txnid, status, hash',
       );
     }
-    return this.paymentsService.verifyPayment(
-      bookingId,
-      body.razorpay_order_id,
-      body.razorpay_payment_id,
-      body.razorpay_signature,
-    );
+    return this.paymentsService.verifyPayment(bookingId, body);
+  }
+
+  /**
+   * PayU surl/furl callback endpoint.
+   * PayU redirects here after payment (success or failure).
+   * Returns an HTML page that posts the result back to the WebView.
+   */
+  @Post('payu/callback')
+  @Public()
+  @UsePipes()
+  @ApiOperation({ summary: 'PayU payment callback (surl/furl)' })
+  async payuCallback(@Req() req: Request, @Res() res: Response) {
+    const body = req.body;
+    // Return HTML that posts the PayU response to the React Native WebView
+    const responseJson = JSON.stringify(body);
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body>
+  <script>
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'payu_response',
+        data: ${responseJson}
+      }));
+    } catch(e) {
+      document.body.innerHTML = '<p>Payment processed. You can close this window.</p>';
+    }
+  </script>
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  }
+
+  @Get(':bookingId/status')
+  @ApiOperation({ summary: 'Check payment status via PayU verify API' })
+  @ApiResponse({ status: 200, description: 'Payment status returned' })
+  async checkPaymentStatus(@Param('bookingId') bookingId: string) {
+    return this.paymentsService.checkAndUpdatePaymentStatus(bookingId);
   }
 
   @Get(':bookingId')
   @ApiOperation({ summary: 'Get payment details by booking ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Payment details retrieved successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Payment not found',
-  })
+  @ApiResponse({ status: 200, description: 'Payment details retrieved' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
   async getPaymentByBooking(@Param('bookingId') bookingId: string) {
     return this.paymentsService.getPaymentByBooking(bookingId);
   }

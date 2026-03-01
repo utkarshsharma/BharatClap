@@ -446,8 +446,7 @@ export class AdminService {
       },
     });
 
-    // TODO: Actual Razorpay transfer implementation
-    // This would involve calling Razorpay's transfer API
+    // TODO: Actual payout transfer implementation
 
     return {
       success: true,

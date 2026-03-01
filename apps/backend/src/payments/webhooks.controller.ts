@@ -1,7 +1,6 @@
-import { Controller, Post, Req, Headers, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
-import { Request } from 'express';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -10,30 +9,18 @@ export class WebhooksController {
 
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post('razorpay')
+  @Post('payu')
   @ApiExcludeEndpoint()
-  @ApiOperation({ summary: 'Handle Razorpay webhook events' })
-  @ApiResponse({
-    status: 200,
-    description: 'Webhook processed successfully',
-  })
-  async handleRazorpayWebhook(
-    @Req() req: Request,
-    @Headers('x-razorpay-signature') signature: string,
-  ) {
+  @ApiOperation({ summary: 'Handle PayU webhook events' })
+  @ApiResponse({ status: 200, description: 'Webhook processed successfully' })
+  async handlePayuWebhook(@Body() body: any) {
     try {
-      const body = req.body;
-
-      this.logger.log(`Received Razorpay webhook: ${body.event}`);
-
-      // Process webhook
-      await this.paymentsService.handleWebhook(body, signature);
-
-      // Always return 200 OK to Razorpay
+      this.logger.log(`Received PayU webhook: txnid=${body.txnid}, status=${body.status}`);
+      await this.paymentsService.handleWebhook(body);
       return { status: 'ok' };
     } catch (error: any) {
       this.logger.error(`Webhook processing error: ${error.message}`);
-      // Still return 200 to prevent Razorpay from retrying
+      // Always return 200 OK to prevent PayU from retrying
       return { status: 'ok' };
     }
   }
