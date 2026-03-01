@@ -89,9 +89,7 @@ export default function AdminLayout({
         <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-10">
           <div className="p-6">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="bg-primary text-white p-2 rounded-lg">
-                <Home className="h-6 w-6" />
-              </div>
+              <img src="/logo.png" alt="BharatClap" className="h-10 w-10 rounded-lg object-cover" />
               <span className="text-2xl font-bold text-primary">BharatClap</span>
             </Link>
             <p className="text-sm text-gray-500 mt-2">Admin Panel</p>

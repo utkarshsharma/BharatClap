@@ -1,0 +1,46 @@
+#!/bin/bash
+# Pre-commit hook: block commits containing hardcoded secrets
+# Patterns: API keys, private keys, passwords, tokens in source files
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|json|yml|yaml)$' | grep -v 'node_modules' | grep -v '.env')
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+# Patterns that indicate hardcoded secrets
+PATTERNS=(
+  'AIzaSy[A-Za-z0-9_-]{33}'          # Google API keys
+  'sk-[A-Za-z0-9]{20,}'               # OpenAI/Stripe secret keys
+  'ghp_[A-Za-z0-9]{36}'               # GitHub personal access tokens
+  'PRIVATE KEY-----'                   # Private keys
+  'eyJhbGciOi[A-Za-z0-9_-]{50,}'     # JWTs (long base64 strings)
+  'rzp_live_[A-Za-z0-9]{14}'          # Razorpay live keys
+  'xai-[A-Za-z0-9]{20,}'              # xAI/Grok keys
+)
+
+FOUND=0
+
+for FILE in $STAGED_FILES; do
+  for PATTERN in "${PATTERNS[@]}"; do
+    MATCHES=$(git diff --cached -- "$FILE" | grep '^+' | grep -v '^+++' | grep -oE "$PATTERN")
+    if [ -n "$MATCHES" ]; then
+      echo "ERROR: Possible secret found in $FILE"
+      echo "  Pattern: $PATTERN"
+      echo "  Match: $MATCHES"
+      echo ""
+      FOUND=1
+    fi
+  done
+done
+
+if [ $FOUND -ne 0 ]; then
+  echo "========================================="
+  echo "COMMIT BLOCKED: Hardcoded secrets detected"
+  echo "Move secrets to .env files instead."
+  echo "To bypass (emergency only): git commit --no-verify"
+  echo "========================================="
+  exit 1
+fi
+
+exit 0

@@ -49,9 +49,7 @@ export default function LoginPage() {
       <nav className="border-b bg-white">
         <div className="container mx-auto px-4 py-4">
           <Link href="/" className="flex items-center space-x-2 w-fit">
-            <div className="bg-primary text-white p-2 rounded-lg">
-              <Home className="h-6 w-6" />
-            </div>
+            <img src="/logo.png" alt="BharatClap" className="h-10 w-10 rounded-lg object-cover" />
             <span className="text-2xl font-bold text-primary">BharatClap</span>
           </Link>
         </div>

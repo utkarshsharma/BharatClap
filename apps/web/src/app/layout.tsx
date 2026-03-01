@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: 'BharatClap - Home Services You Can Trust',
   description: 'Book trusted home services from Aadhaar-verified professionals. Plumbing, electrical, cleaning, and more across India.',
   keywords: 'home services, India, plumber, electrician, cleaning, Aadhaar verified',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 }
 
 export default function RootLayout({

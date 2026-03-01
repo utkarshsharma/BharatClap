@@ -47,9 +47,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary text-white p-3 rounded-lg">
-              <Home className="h-8 w-8" />
-            </div>
+            <img src="/logo.png" alt="BharatClap" className="h-14 w-14 rounded-lg object-cover" />
           </div>
           <CardTitle className="text-2xl">BharatClap Admin</CardTitle>
           <CardDescription>Sign in with your admin phone number</CardDescription>

@@ -2,9 +2,9 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, initializeAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '***REDACTED_FIREBASE_KEY***',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'bharatclap.firebaseapp.com',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'bharatclap',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '',
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];

@@ -38,10 +38,10 @@ interface Category {
 }
 
 const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
-  'salon-for-women': Scissors,
-  'salon-for-men': Scissors,
-  'ac-appliance-repair': Wind,
-  'home-cleaning': Sparkles,
+  'salon-women': Scissors,
+  'salon-men': Scissors,
+  'ac-appliance': Wind,
+  'cleaning': Sparkles,
   'electrician': Zap,
   'plumber': Droplet,
   'painter': Paintbrush,
@@ -103,9 +103,7 @@ export default function HomePage() {
       <nav className="border-b bg-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <div className="bg-primary text-white p-2 rounded-lg">
-              <Home className="h-6 w-6" />
-            </div>
+            <img src="/logo.png" alt="BharatClap" className="h-10 w-10 rounded-lg object-cover" />
             <span className="text-2xl font-bold text-primary">BharatClap</span>
           </Link>
 
